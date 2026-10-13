@@ -1,0 +1,87 @@
+name: Build Windows app + installer
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Also publish a GitHub Release with the setup .exe"
+        type: boolean
+        default: false
+
+# Allow the workflow to create/update releases.
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Build Pike.exe and Pike Setup
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install application + build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install "pyinstaller>=6.0.0"
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          # Use the git tag (v1.2.3 -> 1.2.3) when present, else read config.py.
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="$(python -c "import re,pathlib; print(re.search(r'APP_VERSION\s*=\s*\"([^\"]+)\"', pathlib.Path('config.py').read_text()).group(1))")"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: $VERSION"
+
+      - name: Build the application executable
+        run: python build_exe.py
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Build the Windows setup installer
+        run: python build_installer.py --version "${{ steps.version.outputs.version }}"
+
+      - name: Upload standalone executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pike-exe
+          path: dist/Pike.exe
+          if-no-files-found: error
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pike-Setup
+          path: installer/Output/Pike-*-Setup.exe
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Pike v${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          files: |
+            dist/Pike.exe
+            installer/Output/Pike-*-Setup.exe
+          fail_on_unmatched_files: true

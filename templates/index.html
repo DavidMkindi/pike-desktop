@@ -1,0 +1,791 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#141414">
+  <meta name="description" content="Pike — a focused desktop AI assistant.">
+  <title>Pike</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='pike-favicon.svg') }}">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+  <script>
+    // Apply the saved theme before first paint so there is no flash of light.
+    (function () {
+      try {
+        var saved = JSON.parse(localStorage.getItem('pike.theme') || '"dark"');
+        var resolved = saved === 'system'
+          ? (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+          : saved;
+        document.documentElement.setAttribute('data-theme', resolved === 'light' ? 'light' : 'dark');
+        document.documentElement.style.colorScheme = resolved;
+      } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+</head>
+<body>
+
+  <!-- ============================ ICON SPRITE ============================ -->
+  <svg class="svg-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20.5 20.5 16.7 16.7"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13M10 11v6M14 11v6"/></symbol>
+    <symbol id="i-message" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/></symbol>
+    <symbol id="i-arrow-up" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></symbol>
+    <symbol id="i-arrow-down" viewBox="0 0 24 24"><path d="M12 5v14M5 12l7 7 7-7"/></symbol>
+    <symbol id="i-arrow-up-right" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9"/></symbol>
+    <symbol id="i-square" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="4"/><path d="M10.4 12.6 20 3M16 3l5 5"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M3 3l18 18"/><path d="M10.6 10.6a3 3 0 0 0 4.2 4.2"/><path d="M9.9 5.2A10.5 10.5 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.1"/><path d="M6.2 6.2A17.6 17.6 0 0 0 2 12s3.6 7 10 7a10.5 10.5 0 0 0 4-.8"/></symbol>
+    <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+    <symbol id="i-terminal" viewBox="0 0 24 24"><path d="m5 8 4 4-4 4M12 16h7"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></symbol>
+    <symbol id="i-folder-open" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h3.5l2 2H19a2 2 0 0 1 2 2v1H5.5a2 2 0 0 0-1.9 1.4L2 18V7z"/><path d="M2 18l1.7-6.6A2 2 0 0 1 5.5 10H22l-2 8a2 2 0 0 1-2 1.5H4A2 2 0 0 1 2 18z"/></symbol>
+    <symbol id="i-file-plus" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M12 12v6M9 15h6"/></symbol>
+    <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></symbol>
+    <symbol id="i-terminal-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-panel-left" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></symbol>
+    <symbol id="i-panel-right" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></symbol>
+    <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15.2l.6 1.7 1.7.6-1.7.6-.6 1.7-.6-1.7-1.7-.6 1.7-.6z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-logo" viewBox="0 0 96 96"><g fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><rect x="12" y="20" width="72" height="46" rx="5"/><path d="M48 66v11M31 77h34"/><path d="M34 57c9-2.5 16 3.5 26-2" stroke-width="4"/><path d="M40.5 51 58.5 33 53.5 28 35.5 46z"/><path d="M32.5 54 40.5 51 35.5 46z" fill="currentColor"/><path d="M35 51.6 38.2 48.4"/></g></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2.7 20h18.6z"/><path d="M12 9v5M12 17.5h.01"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></symbol>
+    <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M4.5 12.5a11 11 0 0 1 15 0"/><path d="M8 16a6 6 0 0 1 8 0"/><path d="M12 19.5h.01"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.6-3.2 7.6-8 9-4.8-1.4-8-4.4-8-9V6z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20.5 12a8.5 8.5 0 1 1-2.5-6"/><path d="M21 4v5h-5"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h5"/></symbol>
+    <symbol id="i-eraser" viewBox="0 0 24 24"><path d="M20 20H8l-4.6-4.6a2 2 0 0 1 0-2.8l7.6-7.6a2 2 0 0 1 2.8 0l5 5a2 2 0 0 1 0 2.8L11 20"/></symbol>
+    <symbol id="i-paperclip" viewBox="0 0 24 24"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></symbol>
+    <symbol id="i-file-text" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8M16 17H8M10 9H8"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></symbol>
+    <symbol id="i-code" viewBox="0 0 24 24"><path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 21V9M7 14l5-5 5 5M5 3h14"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 3 4 14h7l-1 7 9-11h-7z"/></symbol>
+    <symbol id="i-lightbulb" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4.9 1 .9 1.7V16h5.2v-.4c0-.7.3-1.3.9-1.7A6 6 0 0 0 12 3z"/></symbol>
+    <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/></symbol>
+    <symbol id="i-pen" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M9 15l2 2 4-4"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h3.5l2 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 3v6M15 3v6M7 9h10v3a5 5 0 0 1-5 5 5 5 0 0 1-5-5zM12 17v4"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+    <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></symbol>
+    <symbol id="i-palette" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20 2.5 2.5 0 0 0 2.5-2.5c0-.6-.2-1.1-.6-1.5-.4-.4-.6-.9-.6-1.5a1.9 1.9 0 0 1 1.9-1.9H17a5 5 0 0 0 5-5c0-4.4-4.5-8-10-8z"/></symbol>
+    <symbol id="i-vscode" viewBox="0 0 24 24"><path d="M17.5 2.5 8 11.6 3.8 8.4 2 9.3v5.4l1.8.9L8 12.4l9.5 9.1L22 19.8V4.2zM17.5 7v10l-6-5z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-cursor" viewBox="0 0 24 24"><path d="M12 2 4 6.5v11L12 22l8-4.5v-11z" fill="none"/><path d="m8.5 9 3.5 6 3.5-6" fill="none"/></symbol>
+    <symbol id="i-jetbrains" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3" fill="currentColor" stroke="none"/><path d="M7 8h4M9 8v8M16 8v8M16 12h-2" stroke="#141414" stroke-width="1.6"/></symbol>
+    <symbol id="i-neovim" viewBox="0 0 24 24"><path d="M4 4v16M20 20V4M4 4l16 16M20 4 4 20"/></symbol>
+    <symbol id="i-sublime" viewBox="0 0 24 24"><path d="M20 4 6 10l8 2-10 4 14 4-8-4 10-4z"/></symbol>
+  </svg>
+
+  <!-- ============================ PRELOADER ============================ -->
+  <div class="preloader" id="preloader" role="status" aria-live="polite" aria-busy="true">
+    <div class="preloader-inner">
+      <div class="preloader-mark">
+        <span class="preloader-ring" aria-hidden="true"></span>
+        <svg class="preloader-logo" viewBox="0 0 96 96" aria-hidden="true"><use href="#i-logo"></use></svg>
+      </div>
+      <div class="preloader-brand">Pike</div>
+      <div class="preloader-status" id="preloaderStatus">Starting up…</div>
+      <div class="preloader-bar" aria-hidden="true"><span id="preloaderProgress"></span></div>
+    </div>
+  </div>
+  <script>
+    // Boot controller: keeps the preloader in sync with app.js and guarantees
+    // the overlay goes away even if the main script fails to load.
+    window.__pikeDesktop = {{ 'true' if desktop_mode else 'false' }};
+    window.__pikeBoot = (function () {
+      var overlay = document.getElementById('preloader');
+      var statusEl = document.getElementById('preloaderStatus');
+      var barEl = document.getElementById('preloaderProgress');
+      var failsafe = null;
+      var finished = false;
+
+      function remove() {
+        if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        overlay = null;
+      }
+      function done() {
+        if (finished) return;
+        finished = true;
+        if (failsafe) clearTimeout(failsafe);
+        if (!overlay) return;
+        overlay.setAttribute('aria-busy', 'false');
+        overlay.classList.add('is-hidden');
+        overlay.addEventListener('transitionend', remove, { once: true });
+        // Failsafe in case the transition never fires (e.g. reduced motion).
+        setTimeout(remove, 700);
+      }
+      function setStatus(text, ratio) {
+        if (statusEl && text) statusEl.textContent = text;
+        if (barEl && typeof ratio === 'number') {
+          barEl.style.width = Math.max(0, Math.min(1, ratio)) * 100 + '%';
+        }
+      }
+      // Never trap the user behind the overlay if booting stalls.
+      failsafe = setTimeout(done, 15000);
+      return { setStatus: setStatus, done: done };
+    })();
+  </script>
+
+  <div class="app" id="appShell">
+    <div class="window-bar" id="windowBar">
+      <div class="window-left">
+        <span class="window-title pywebview-drag-region" id="windowTitle">{{ app_name }}</span>
+        <button class="window-update" id="windowUpdate" title="Check for updates" aria-label="Check for updates">
+          <span class="win-glyph" aria-hidden="true">&#xE72C;</span>
+          <span class="window-update-label">Update</span>
+        </button>
+      </div>
+      <div class="window-drag pywebview-drag-region" aria-hidden="true"></div>
+      <div class="window-controls">
+        <button class="window-control" id="windowMinimize" title="Minimize" aria-label="Minimize">
+          <span class="win-glyph" aria-hidden="true">&#xE921;</span>
+        </button>
+        <button class="window-control" id="windowMaximize" title="Maximize" aria-label="Maximize">
+          <span class="win-glyph glyph-maximize" aria-hidden="true">&#xE922;</span>
+          <span class="win-glyph glyph-restore" aria-hidden="true">&#xE923;</span>
+        </button>
+        <button class="window-control window-close" id="windowClose" title="Close" aria-label="Close">
+          <span class="win-glyph" aria-hidden="true">&#xE8BB;</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ============================ SIDEBAR ============================ -->
+    <aside class="sidebar" id="sidebar" aria-label="Sidebar">
+      <div class="sidebar-head">
+        <div class="brand">
+          <span class="brand-logo"><svg class="icon"><use href="#i-logo"></use></svg></span>
+          <span class="brand-name">Pike</span>
+        </div>
+        <button class="icon-btn sidebar-close" id="sidebarClose" title="Close sidebar" aria-label="Close sidebar">
+          <svg class="icon"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+
+      <button class="btn btn-primary btn-block" id="newChat">
+        <svg class="icon"><use href="#i-plus"></use></svg>
+        <span>New chat</span>
+        <kbd class="kbd">Ctrl K</kbd>
+      </button>
+
+      <div class="search">
+        <svg class="icon search-icon"><use href="#i-search"></use></svg>
+        <input id="searchInput" type="search" placeholder="Search conversations" autocomplete="off" spellcheck="false" aria-label="Search conversations">
+        <button class="icon-btn search-clear" id="searchClear" title="Clear search" hidden>
+          <svg class="icon"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+
+      <div class="sidebar-scroll">
+        <section class="sidebar-section">
+          <div class="list-head" id="projectsHead" role="button" tabindex="0" title="Open projects">
+            <span class="list-title">Projects</span>
+            <button class="icon-btn" id="newProject" title="New project" aria-label="New project">
+              <svg class="icon"><use href="#i-plus"></use></svg>
+            </button>
+          </div>
+          <nav class="project-list" id="projectList" aria-label="Projects"></nav>
+        </section>
+
+        <section class="sidebar-section">
+          <div class="list-head">
+            <span class="list-title">Connect</span>
+          </div>
+          <button class="status-card" id="connectCard" title="Connect to a code editor">
+            <span class="status-dot" id="statusDot"></span>
+            <span class="status-text" id="connectionStatus">Connect to editor</span>
+            <svg class="icon"><use href="#i-chevron-right"></use></svg>
+          </button>
+        </section>
+
+        <section class="sidebar-section grow">
+          <div class="list-head">
+            <span class="list-title">Conversations</span>
+            <button class="icon-btn" id="clearHistory" title="Delete all conversations" aria-label="Delete all conversations">
+              <svg class="icon"><use href="#i-trash"></use></svg>
+            </button>
+          </div>
+          <nav class="chat-list" id="chatHistory" aria-label="Conversation history"></nav>
+        </section>
+      </div>
+
+      <div class="sidebar-foot">
+        <button class="status-card" id="settingsBtn" title="Open settings">
+          <svg class="icon"><use href="#i-settings"></use></svg>
+          <span class="status-text">Settings</span>
+          <svg class="icon"><use href="#i-chevron-right"></use></svg>
+        </button>
+      </div>
+    </aside>
+
+    <div class="backdrop" id="sidebarBackdrop" hidden></div>
+
+    <!-- ============================ MAIN ============================ -->
+    <div class="main">
+      <header class="topbar">
+        <button class="icon-btn menu-btn" id="menuBtn" title="Open sidebar" aria-label="Open sidebar">
+          <svg class="icon"><use href="#i-menu"></use></svg>
+        </button>
+        <div class="view-tabs" id="viewTabs" role="tablist" aria-label="Workspace views">
+          <button class="view-tab active" data-view="chat" role="tab" aria-selected="true" title="Chat">
+            <svg class="icon"><use href="#i-message"></use></svg>
+            <span>Chat</span>
+          </button>
+          <button class="view-tab" data-view="compose" role="tab" aria-selected="false" title="Compose">
+            <svg class="icon"><use href="#i-pen"></use></svg>
+            <span>Compose</span>
+          </button>
+        </div>
+        <h1 class="topbar-title" id="topTitle" title="New conversation">
+          <svg class="icon topbar-title-icon" id="topTitleIcon" hidden><use href="#i-folder"></use></svg>
+          <span id="topTitleText">New conversation</span>
+        </h1>
+        <div class="topbar-actions">
+          <button class="icon-btn terminal-top" id="terminalTop" title="Terminal" aria-label="Open terminal">
+            <svg class="icon"><use href="#i-terminal"></use></svg>
+          </button>
+          <button class="icon-btn panel-toggle" id="panelToggle" title="Toggle files panel" aria-label="Toggle files panel" aria-pressed="false">
+            <svg class="icon"><use href="#i-panel-right"></use></svg>
+          </button>
+        </div>
+      </header>
+
+      <main class="conversation" id="conversation">
+        <section class="welcome" id="welcome">
+          <h2>How can I help you today?</h2>
+          <p class="welcome-sub">Ask a question, explore an idea, or get something done.</p>
+        </section>
+
+        <div class="messages" id="messages" aria-live="polite" aria-busy="false"></div>
+
+        <button class="scroll-btn" id="scrollBottom" title="Scroll to latest" aria-label="Scroll to latest" hidden>
+          <svg class="icon"><use href="#i-arrow-down"></use></svg>
+        </button>
+      </main>
+
+      <footer class="composer">
+        <div class="composer-box" id="composerBox">
+          <div class="attach-preview" id="attachPreview" hidden></div>
+          <textarea id="promptInput" rows="1" placeholder="Message Pike..." aria-label="Message Pike"></textarea>
+          <div class="composer-bar">
+            <div class="attach-select" id="attachWrap">
+              <button class="icon-btn" id="attachBtn" type="button" title="Attach" aria-label="Attach files" aria-haspopup="menu" aria-expanded="false">
+                <svg class="icon"><use href="#i-paperclip"></use></svg>
+              </button>
+              <div class="attach-menu" id="attachMenu" role="menu" aria-label="Attachment options" hidden>
+                <button class="attach-option" type="button" role="menuitem" data-attach="files">
+                  <svg class="icon"><use href="#i-upload"></use></svg>
+                  <span>Upload files</span>
+                </button>
+                <button class="attach-option" type="button" role="menuitem" data-attach="images">
+                  <svg class="icon"><use href="#i-image"></use></svg>
+                  <span>Upload image</span>
+                </button>
+                <button class="attach-option" type="button" role="menuitem" data-attach="code">
+                  <svg class="icon"><use href="#i-code"></use></svg>
+                  <span>Paste code snippet</span>
+                </button>
+              </div>
+              <input type="file" id="fileInput" multiple hidden aria-hidden="true" tabindex="-1">
+              <input type="file" id="imageInput" accept="image/*" multiple hidden aria-hidden="true" tabindex="-1">
+            </div>
+            <div class="model-select" id="modelSelectWrap">
+              <button class="model-trigger" id="modelTrigger" type="button" aria-haspopup="listbox" aria-expanded="false" title="Active model">
+                <span class="status-dot" id="modelDot"></span>
+                <span class="model-trigger-label" id="modelTriggerLabel">Select model</span>
+                <svg class="icon model-trigger-chevron"><use href="#i-chevron-down"></use></svg>
+              </button>
+              <div class="model-menu" id="modelMenu" role="listbox" aria-label="AI model" hidden>
+                <div class="model-search">
+                  <svg class="icon"><use href="#i-search"></use></svg>
+                  <input id="modelSearchInput" type="search" placeholder="Search models" autocomplete="off" spellcheck="false" aria-label="Search models">
+                </div>
+                <div class="model-menu-list" id="modelMenuList"></div>
+              </div>
+              <select id="modelSelect" aria-hidden="true" tabindex="-1" hidden></select>
+            </div>
+            <div class="model-select reasoning-select" id="reasoningWrap" hidden>
+              <button class="model-trigger reasoning-trigger" id="reasoningTrigger" type="button" aria-haspopup="listbox" aria-expanded="false" title="Thinking level">
+                <svg class="icon reasoning-trigger-icon"><use href="#i-lightbulb"></use></svg>
+                <span class="model-trigger-label" id="reasoningTriggerLabel">Thinking: Medium</span>
+                <svg class="icon model-trigger-chevron"><use href="#i-chevron-down"></use></svg>
+              </button>
+              <div class="model-menu reasoning-menu" id="reasoningMenu" role="listbox" aria-label="Thinking level" hidden>
+                <div class="model-menu-list" id="reasoningMenuList"></div>
+              </div>
+            </div>
+            <div class="composer-right">
+              <span class="hint" id="composerHint">Enter to send · Shift + Enter for new line</span>
+              <button class="send-btn" id="sendBtn" title="Send message" aria-label="Send message">
+                <svg class="icon"><use href="#i-arrow-up"></use></svg>
+              </button>
+              <button class="send-btn stop" id="stopBtn" title="Stop generating" aria-label="Stop generating" hidden>
+                <svg class="icon"><use href="#i-square"></use></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+        <p class="disclaimer">Pike can make mistakes. Check important information.</p>
+      </footer>
+
+      <!-- ============================ COMPOSE (workspace) ============================ -->
+      <section class="compose-view" id="composeView" hidden aria-label="Compose workspace">
+        <div class="compose-folder-strip" id="composeFolderStrip">
+          <svg class="icon"><use href="#i-folder"></use></svg>
+          <span class="compose-folder-strip-label">Opened folder</span>
+          <span class="compose-folder-strip-name" id="composeFolderStripName">No folder open</span>
+          <button class="btn btn-sm" id="composeChooseFolder" type="button">Choose folder</button>
+        </div>
+        <main class="conversation compose-conversation" id="composeConversation">
+          <div class="messages compose-messages" id="composeMessages" aria-live="polite" aria-busy="false"></div>
+        </main>
+        <footer class="composer compose-composer">
+          <div class="composer-box" id="composeComposerBox">
+            <div class="attach-preview" id="composeAttachPreview" hidden></div>
+            <textarea id="composePromptInput" rows="1" placeholder="Message Pike about this folder..." aria-label="Message Pike about this folder"></textarea>
+            <div class="composer-bar">
+              <div class="attach-select" id="composeAttachWrap">
+                <button class="icon-btn" id="composeAttachBtn" type="button" title="Attach" aria-label="Attach files" aria-haspopup="menu" aria-expanded="false">
+                  <svg class="icon"><use href="#i-paperclip"></use></svg>
+                </button>
+                <div class="attach-menu" id="composeAttachMenu" role="menu" aria-label="Attachment options" hidden>
+                  <button class="attach-option" type="button" role="menuitem" data-attach="files">
+                    <svg class="icon"><use href="#i-upload"></use></svg>
+                    <span>Upload files</span>
+                  </button>
+                  <button class="attach-option" type="button" role="menuitem" data-attach="images">
+                    <svg class="icon"><use href="#i-image"></use></svg>
+                    <span>Upload image</span>
+                  </button>
+                  <button class="attach-option" type="button" role="menuitem" data-attach="code">
+                    <svg class="icon"><use href="#i-code"></use></svg>
+                    <span>Paste code snippet</span>
+                  </button>
+                </div>
+                <input type="file" id="composeFileInput" multiple hidden aria-hidden="true" tabindex="-1">
+                <input type="file" id="composeImageInput" accept="image/*" multiple hidden aria-hidden="true" tabindex="-1">
+              </div>
+              <div class="model-select" id="composeModelSelectWrap">
+                <button class="model-trigger" id="composeModelTrigger" type="button" aria-haspopup="listbox" aria-expanded="false" title="Active model">
+                  <span class="status-dot" id="composeModelDot"></span>
+                  <span class="model-trigger-label" id="composeModelTriggerLabel">Select model</span>
+                  <svg class="icon model-trigger-chevron"><use href="#i-chevron-down"></use></svg>
+                </button>
+                <div class="model-menu compose-model-menu" id="composeModelMenu" role="listbox" aria-label="AI model" hidden>
+                  <div class="model-search">
+                    <svg class="icon"><use href="#i-search"></use></svg>
+                    <input id="composeModelSearchInput" type="search" placeholder="Search models" autocomplete="off" spellcheck="false" aria-label="Search models">
+                  </div>
+                  <div class="model-menu-list" id="composeModelMenuList"></div>
+                </div>
+                <select id="composeModelSelect" aria-hidden="true" tabindex="-1" hidden></select>
+              </div>
+              <div class="model-select reasoning-select" id="composeReasoningWrap" hidden>
+                <button class="model-trigger reasoning-trigger" id="composeReasoningTrigger" type="button" aria-haspopup="listbox" aria-expanded="false" title="Thinking level">
+                  <svg class="icon reasoning-trigger-icon"><use href="#i-lightbulb"></use></svg>
+                  <span class="model-trigger-label" id="composeReasoningTriggerLabel">Thinking: Medium</span>
+                  <svg class="icon model-trigger-chevron"><use href="#i-chevron-down"></use></svg>
+                </button>
+                <div class="model-menu reasoning-menu" id="composeReasoningMenu" role="listbox" aria-label="Thinking level" hidden>
+                  <div class="model-menu-list" id="composeReasoningMenuList"></div>
+                </div>
+              </div>
+              <div class="composer-right">
+                <span class="hint">Enter to send · Shift + Enter for new line</span>
+                <button class="send-btn" id="composeSendBtn" title="Send message" aria-label="Send message">
+                  <svg class="icon"><use href="#i-arrow-up"></use></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </footer>
+      </section>
+    </div>
+
+    <!-- ============================ RIGHT FILES PANEL ============================ -->
+    <aside class="right-panel" id="rightPanel" hidden aria-label="Files panel">
+      <div class="right-panel-host" id="rightPanelBody">
+        <div class="workspace-panel" id="workspacePanel">
+        <aside class="compose-side" id="composeSide">
+          <div class="compose-side-head">
+            <div class="compose-folder" id="composeFolder" title="No folder open">
+              <svg class="icon"><use href="#i-folder"></use></svg>
+              <span class="compose-folder-name" id="composeFolderName">No folder open</span>
+            </div>
+            <div class="compose-side-actions">
+              <button class="icon-btn" id="openFolderBtn" title="Open folder" aria-label="Open folder">
+                <svg class="icon"><use href="#i-folder-open"></use></svg>
+              </button>
+              <button class="icon-btn" id="newFileBtn" title="New file" aria-label="New file">
+                <svg class="icon"><use href="#i-file-plus"></use></svg>
+              </button>
+              <button class="icon-btn" id="refreshTreeBtn" title="Refresh" aria-label="Refresh file tree">
+                <svg class="icon"><use href="#i-refresh"></use></svg>
+              </button>
+            </div>
+          </div>
+          <div class="compose-search">
+            <svg class="icon"><use href="#i-search"></use></svg>
+            <input id="workspaceSearchInput" type="search" placeholder="Search in folder" autocomplete="off" spellcheck="false" aria-label="Search in folder">
+          </div>
+          <div class="file-tree" id="fileTree" role="tree" aria-label="Workspace files"></div>
+        </aside>
+        <div class="compose-main">
+          <div class="compose-empty" id="composeEmpty">
+            <svg class="icon compose-empty-icon"><use href="#i-folder-open"></use></svg>
+            <h2>Open a folder to start coding</h2>
+            <p>Point Pike at a project so it can read and write files, like a coding agent.</p>
+            <button class="btn btn-primary" id="openFolderEmpty" type="button">
+              <svg class="icon"><use href="#i-folder-open"></use></svg>
+              <span>Open folder</span>
+            </button>
+          </div>
+          <div class="editor" id="editorPane" hidden>
+            <div class="editor-head">
+              <div class="editor-path" id="editorPath">
+                <svg class="icon"><use href="#i-file-text"></use></svg>
+                <span id="editorPathText">—</span>
+              </div>
+              <div class="editor-actions">
+                <span class="editor-status" id="editorStatus"></span>
+                <button class="btn btn-sm btn-primary" id="saveFileBtn" type="button" disabled>
+                  <svg class="icon"><use href="#i-save"></use></svg>
+                  <span class="btn-label">Save</span>
+                </button>
+              </div>
+            </div>
+            <textarea class="editor-area" id="editorArea" spellcheck="false" aria-label="File content"></textarea>
+          </div>
+        </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ============================ TERMINAL PANEL ============================ -->
+  <section class="terminal-panel" id="terminalPanel" hidden aria-label="Terminal">
+    <header class="terminal-head">
+      <div class="terminal-title">
+        <svg class="icon"><use href="#i-terminal"></use></svg>
+        <span>Terminal</span>
+        <span class="terminal-cwd" id="terminalCwd"></span>
+      </div>
+      <div class="terminal-head-actions">
+        <button class="icon-btn" id="terminalNewBtn" title="New terminal" aria-label="New terminal">
+          <svg class="icon"><use href="#i-terminal-plus"></use></svg>
+        </button>
+        <button class="icon-btn" id="terminalClearBtn" title="Clear" aria-label="Clear terminal">
+          <svg class="icon"><use href="#i-eraser"></use></svg>
+        </button>
+        <button class="icon-btn" id="terminalCloseBtn" title="Close" aria-label="Close terminal">
+          <svg class="icon"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+    </header>
+    <div class="terminal-output" id="terminalOutput" tabindex="0" aria-live="polite"></div>
+    <form class="terminal-input-row" id="terminalForm" autocomplete="off">
+      <span class="terminal-prompt" id="terminalPrompt">$</span>
+      <input class="terminal-input" id="terminalInput" type="text" placeholder="Type a command and press Enter" autocomplete="off" spellcheck="false" aria-label="Terminal command">
+    </form>
+  </section>
+  <div class="terminal-resize" id="terminalResize" hidden aria-hidden="true"></div>
+
+  <!-- ============================ FOLDER PICKER MODAL ============================ -->
+  <div class="modal-overlay" id="folderModal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="folderModalTitle">
+      <header class="modal-head">
+        <div>
+          <h2 id="folderModalTitle">Open folder</h2>
+          <p>Choose a project folder for Pike to read and write.</p>
+        </div>
+        <button class="icon-btn" id="folderModalClose" title="Close" aria-label="Close">
+          <svg class="icon"><use href="#i-x"></use></svg>
+        </button>
+      </header>
+      <div class="modal-body folder-modal-body">
+        <div class="folder-bar">
+          <button class="icon-btn" id="folderUp" title="Parent folder" aria-label="Parent folder">
+            <svg class="icon"><use href="#i-arrow-up"></use></svg>
+          </button>
+          <span class="folder-path" id="folderPath">—</span>
+          <button class="btn btn-primary btn-sm" id="folderChoose" type="button">
+            <svg class="icon"><use href="#i-check"></use></svg>
+            <span>Open this folder</span>
+          </button>
+        </div>
+        <div class="folder-drives" id="folderDrives"></div>
+        <div class="folder-list" id="folderList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================ TOASTS ============================ -->
+  <div class="toast-stack" id="toastContainer" aria-live="polite"></div>
+
+  <!-- ============================ DIALOG MODAL ============================ -->
+  <div class="modal-overlay" id="dialogModal" hidden>
+    <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="dialogTitle" aria-describedby="dialogMessage">
+      <header class="modal-head">
+        <div>
+          <h2 id="dialogTitle">Title</h2>
+          <p id="dialogMessage"></p>
+        </div>
+      </header>
+      <div class="modal-body" id="dialogBody">
+        <label class="field" id="dialogField" hidden>
+          <textarea id="dialogInput" rows="1"></textarea>
+        </label>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" id="dialogCancel" type="button">Cancel</button>
+        <button class="btn btn-primary" id="dialogConfirm" type="button">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================ PROJECT MODAL ============================ -->
+  <div class="modal-overlay" id="projectModal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="projectModalTitle">
+      <header class="modal-head">
+        <div>
+          <h2 id="projectModalTitle">Projects</h2>
+          <p>Group related conversations into projects.</p>
+        </div>
+        <button class="icon-btn" id="projectModalClose" title="Close" aria-label="Close">
+          <svg class="icon"><use href="#i-x"></use></svg>
+        </button>
+      </header>
+      <div class="modal-body project-modal-body">
+        <div class="project-create">
+          <span class="input-wrap">
+            <svg class="icon"><use href="#i-folder"></use></svg>
+            <input id="projectNameInput" type="text" placeholder="New project name" autocomplete="off" spellcheck="false" maxlength="60">
+          </span>
+          <button class="btn btn-primary" id="createProjectBtn" type="button">
+            <svg class="icon"><use href="#i-plus"></use></svg>
+            <span>Create</span>
+          </button>
+        </div>
+        <div class="project-modal-list" id="projectModalList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================ CONNECT MODAL ============================ -->
+  <div class="modal-overlay" id="connectModal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="connectModalTitle">
+      <header class="modal-head">
+        <div>
+          <h2 id="connectModalTitle">Connect to editor</h2>
+          <p>Send Pike's answers straight into your code editor.</p>
+        </div>
+        <button class="icon-btn" id="connectModalClose" title="Close" aria-label="Close">
+          <svg class="icon"><use href="#i-x"></use></svg>
+        </button>
+      </header>
+      <div class="modal-body">
+        <div class="editor-list" id="editorList"></div>
+        <p class="secure-note">
+          <svg class="icon"><use href="#i-shield"></use></svg>
+          Connection details are stored locally on this device only.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================ SETTINGS MODAL ============================ -->
+  <div class="modal-overlay" id="settingsModal" hidden>
+    <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <header class="modal-head">
+        <div>
+          <h2 id="settingsTitle">Settings</h2>
+          <p>Manage your connection, appearance and data.</p>
+        </div>
+        <button class="icon-btn" id="modalClose" title="Close" aria-label="Close">
+          <svg class="icon"><use href="#i-x"></use></svg>
+        </button>
+      </header>
+
+      <div class="settings-layout">
+        <nav class="settings-tabs" id="settingsTabs" role="tablist" aria-label="Settings sections">
+          <button class="settings-tab active" data-tab="connection" role="tab" aria-selected="true">
+            <svg class="icon"><use href="#i-plug"></use></svg><span>Connection</span>
+          </button>
+          <button class="settings-tab" data-tab="models" role="tab" aria-selected="false">
+            <svg class="icon"><use href="#i-bolt"></use></svg><span>Models</span>
+          </button>
+          <button class="settings-tab" data-tab="appearance" role="tab" aria-selected="false">
+            <svg class="icon"><use href="#i-palette"></use></svg><span>Appearance</span>
+          </button>
+          <button class="settings-tab" data-tab="data" role="tab" aria-selected="false">
+            <svg class="icon"><use href="#i-folder"></use></svg><span>Data</span>
+          </button>
+          <button class="settings-tab" data-tab="about" role="tab" aria-selected="false">
+            <svg class="icon"><use href="#i-info"></use></svg><span>About</span>
+          </button>
+        </nav>
+
+        <div class="settings-panels">
+          <!-- Connection -->
+          <section class="settings-panel active" data-panel="connection">
+            <h3 class="panel-title">Connection</h3>
+            <p class="panel-sub">Pick a provider and paste your API key — the base URL is filled in for you.</p>
+            <label class="field">
+              <span class="field-label">Provider</span>
+              <span class="select-wrap">
+                <svg class="icon"><use href="#i-plug"></use></svg>
+                <select id="providerSelect" aria-label="Provider"></select>
+              </span>
+            </label>
+            <label class="field">
+              <span class="field-label">API key</span>
+              <span class="input-wrap">
+                <svg class="icon"><use href="#i-key"></use></svg>
+                <input id="apiKeyInput" type="password" placeholder="sk-..." autocomplete="off" spellcheck="false">
+                <button class="icon-btn" id="toggleKey" type="button" title="Show key" aria-label="Show key">
+                  <svg class="icon"><use href="#i-eye"></use></svg>
+                </button>
+              </span>
+            </label>
+            <label class="field">
+              <span class="field-label">Base URL <em>auto-filled for the provider</em></span>
+              <span class="input-wrap">
+                <svg class="icon"><use href="#i-globe"></use></svg>
+                <input id="baseUrlInput" type="text" placeholder="https://api.openai.com/v1" autocomplete="off" spellcheck="false">
+              </span>
+            </label>
+            <div class="modal-actions">
+              <a class="link" id="providerDocs" href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">
+                Get an API key <svg class="icon"><use href="#i-external"></use></svg>
+              </a>
+              <div class="action-group">
+                <button class="btn btn-ghost" id="refreshModels" type="button">
+                  <svg class="icon"><use href="#i-refresh"></use></svg>
+                  <span class="btn-label">Refresh models</span>
+                </button>
+                <button class="btn btn-ghost" id="testConnection" type="button">
+                  <svg class="icon"><use href="#i-wifi"></use></svg>
+                  <span class="btn-label">Test connection</span>
+                </button>
+              </div>
+            </div>
+            <p class="secure-note">
+              <svg class="icon"><use href="#i-shield"></use></svg>
+              Stored locally on this device. Only sent to your chosen provider.
+            </p>
+            <div class="panel-foot">
+              <button class="btn btn-ghost danger" id="removeKey">Remove key</button>
+              <button class="btn btn-primary" id="saveKey">
+                <svg class="icon"><use href="#i-check"></use></svg>
+                Save
+              </button>
+            </div>
+          </section>
+
+          <!-- Models -->
+          <section class="settings-panel" data-panel="models">
+            <div class="panel-head-row">
+              <div>
+                <h3 class="panel-title">Models</h3>
+                <p class="panel-sub" id="modelsUpdatedNote">Pick the default model used for new conversations.</p>
+              </div>
+              <button class="btn btn-ghost btn-sm" id="refreshModelsList" type="button">
+                <svg class="icon"><use href="#i-refresh"></use></svg>
+                <span class="btn-label">Refresh</span>
+              </button>
+            </div>
+            <div class="model-list" id="settingsModelList"></div>
+          </section>
+
+          <!-- Appearance -->
+          <section class="settings-panel" data-panel="appearance">
+            <h3 class="panel-title">Appearance</h3>
+            <p class="panel-sub">Choose how Pike looks on this device.</p>
+            <div class="theme-options" id="themeOptions">
+              <button class="theme-option" data-theme="dark" type="button">
+                <svg class="icon"><use href="#i-moon"></use></svg><span>Dark</span>
+              </button>
+              <button class="theme-option" data-theme="light" type="button">
+                <svg class="icon"><use href="#i-sun"></use></svg><span>Light</span>
+              </button>
+              <button class="theme-option" data-theme="system" type="button">
+                <svg class="icon"><use href="#i-monitor"></use></svg><span>System</span>
+              </button>
+            </div>
+            <div class="toggle-row" style="margin-top:18px">
+              <div>
+                <div class="toggle-title">Compact messages</div>
+                <div class="toggle-sub">Reduce spacing between messages.</div>
+              </div>
+              <button class="switch" id="compactToggle" type="button" role="switch" aria-checked="false" aria-label="Compact messages"><span></span></button>
+            </div>
+          </section>
+
+          <!-- Data -->
+          <section class="settings-panel" data-panel="data">
+            <h3 class="panel-title">Data</h3>
+            <p class="panel-sub">Export or clear the information Pike stores locally.</p>
+            <div class="settings-actions">
+              <button class="btn btn-ghost" id="exportHistory" type="button">
+                <svg class="icon"><use href="#i-download"></use></svg>
+                <span>Export conversations</span>
+              </button>
+              <button class="btn btn-ghost danger" id="clearAllData" type="button">
+                <svg class="icon"><use href="#i-trash"></use></svg>
+                <span>Delete all conversations</span>
+              </button>
+              <button class="btn btn-ghost danger" id="clearProjects" type="button">
+                <svg class="icon"><use href="#i-trash"></use></svg>
+                <span>Delete all projects</span>
+              </button>
+            </div>
+            <p class="secure-note">
+              <svg class="icon"><use href="#i-info"></use></svg>
+              Conversations live in a local SQLite database; projects live in your browser.
+            </p>
+          </section>
+
+          <!-- About -->
+          <section class="settings-panel" data-panel="about">
+            <h3 class="panel-title">About</h3>
+            <p class="panel-sub">Pike — a focused desktop assistant.</p>
+            <div class="about-card">
+              <div class="about-row"><span>Application</span><strong id="aboutApp">Pike</strong></div>
+              <div class="about-row"><span>Version</span><strong id="aboutVersion">—</strong></div>
+              <div class="about-row"><span>Default model</span><strong id="aboutModel">—</strong></div>
+              <div class="about-row"><span>Status</span><strong id="aboutStatus">—</strong></div>
+            </div>
+            <p class="secure-note">
+              <svg class="icon"><use href="#i-sparkle"></use></svg>
+              Built with Flask, pywebview and vanilla JavaScript.
+            </p>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.11/dist/purify.min.js"></script>
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

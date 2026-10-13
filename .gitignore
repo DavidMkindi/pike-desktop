@@ -1,0 +1,32 @@
+# Environment / secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Build artifacts
+build/
+dist/
+*.spec
+version_info.txt
+*.log
+
+# Installer output
+installer/Output/
+installer/*.exe
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# --- Not part of the desktop app repo ---
+website/
+pike-vscode/
+_dbg.png
