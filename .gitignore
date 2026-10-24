@@ -28,6 +28,5 @@ Thumbs.db
 .vscode/
 
 # --- Not part of the desktop app repo ---
-website/
 pike-vscode/
 _dbg.png

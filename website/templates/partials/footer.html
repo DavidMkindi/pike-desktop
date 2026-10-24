@@ -1,0 +1,63 @@
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div class="footer-brand">
+      <a class="brand" href="{{ url_for('index') }}">
+        <span class="brand-logo">{% with logo_size = 28 %}{% include "partials/logo.html" %}{% endwith %}</span>
+        <span class="brand-name">Pike</span>
+      </a>
+      <p class="footer-tagline">{{ product.tagline }}</p>
+      <p class="footer-note">
+        Bring your own API key. Usage costs are billed by your provider.
+      </p>
+    </div>
+
+    <div class="footer-col">
+      <h4>Product</h4>
+      <ul>
+        <li><a href="{{ url_for('features') }}">Features</a></li>
+        <li><a href="{{ url_for('download') }}">Download</a></li>
+        <li><a href="{{ url_for('docs') }}">Documentation</a></li>
+        <li><a href="{{ url_for('changelog') }}">Changelog</a></li>
+      </ul>
+    </div>
+
+    <div class="footer-col">
+      <h4>Resources</h4>
+      <ul>
+        <li><a href="{{ url_for('docs') }}#quickstart">Quick start</a></li>
+        <li><a href="{{ url_for('docs') }}#providers">Providers</a></li>
+        <li><a href="{{ url_for('docs') }}#shortcuts">Shortcuts</a></li>
+        <li><a href="{{ url_for('docs') }}#api">API reference</a></li>
+      </ul>
+    </div>
+
+    <div class="footer-col">
+      <h4>Account</h4>
+      <ul>
+        {% if account_user %}
+          <li><a href="{{ url_for('account.dashboard') }}">Dashboard</a></li>
+          <li><a href="{{ url_for('account.logout') }}">Sign out</a></li>
+        {% else %}
+          <li><a href="{{ url_for('account.login') }}">Sign in</a></li>
+          <li><a href="{{ url_for('account.register') }}">Create account</a></li>
+        {% endif %}
+        <li><a href="{{ url_for('account.device_page') }}">Connect a device</a></li>
+      </ul>
+    </div>
+
+    <div class="footer-col">
+      <h4>Project</h4>
+      <ul>
+        <li><a href="{{ url_for('about') }}">About</a></li>
+        <li><a href="{{ url_for('contact') }}">Contact</a></li>
+        <li><a href="{{ product.releases }}" rel="noopener">Releases</a></li>
+        <li><a href="{{ product.github }}" rel="noopener">Source</a></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="container footer-bottom">
+    <span>&copy; {{ current_year }} Pike. {{ product.license }}.</span>
+    <span class="footer-meta">Version {{ product.version }} &middot; Python {{ product.python }}</span>
+  </div>
+</footer>

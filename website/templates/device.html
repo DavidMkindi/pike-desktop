@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% include "partials/icons.html" %}
+
+<section class="device-shell">
+  <div class="container device-container">
+    <div class="device-card">
+      <span class="device-brand">{% with logo_size = 48 %}{% include "partials/logo.html" %}{% endwith %}</span>
+
+      {% if code and entry %}
+        {% if entry.status == 'approved' %}
+          <span class="device-status ok"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg></span>
+          <h1>Device already connected</h1>
+          <p>This code has been approved. You can close this tab and return to the app.</p>
+
+        {% elif entry.status == 'denied' %}
+          <span class="device-status bad"><svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg></span>
+          <h1>Request denied</h1>
+          <p>That sign-in request was denied. Start again from the app if this was a mistake.</p>
+
+        {% else %}
+          <span class="device-status"><svg class="icon" aria-hidden="true"><use href="#i-device"/></svg></span>
+          <h1>Connect {{ entry.name or entry.kind|capitalize }}</h1>
+          <p>
+            A {{ entry.kind }} app is requesting access to your Pike account.
+            Approve to link it and sync your settings and activity.
+          </p>
+
+          <div class="device-code-display">
+            <span class="device-code-label">Code</span>
+            <code>{{ entry.code }}</code>
+          </div>
+
+          {% if not user %}
+            <div class="device-signin">
+              <p>Sign in to approve this device.</p>
+              <div class="device-signin-actions">
+                <a class="btn btn-primary" href="{{ url_for('account.login', next=request.full_path) }}">Sign in</a>
+                <a class="btn btn-ghost" href="{{ url_for('account.register', next=request.full_path) }}">Create account</a>
+              </div>
+            </div>
+          {% else %}
+            <p class="device-as">Signed in as <strong>{{ user.email }}</strong></p>
+            <div class="device-actions">
+              <button class="btn btn-primary btn-lg" id="approveBtn" data-code="{{ entry.code }}">
+                <svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>
+                <span class="btn-label">Approve device</span>
+              </button>
+              <button class="btn btn-ghost" id="denyBtn" data-code="{{ entry.code }}">Deny</button>
+            </div>
+          {% endif %}
+        {% endif %}
+
+      {% else %}
+        <span class="device-status"><svg class="icon" aria-hidden="true"><use href="#i-device"/></svg></span>
+        <h1>Connect a device</h1>
+        <p>Enter the code shown in the Pike desktop app or VS Code extension.</p>
+
+        <form class="device-code-form" id="codeForm">
+          <div class="form-error" id="formError" hidden role="alert"></div>
+          <label class="field">
+            <span class="field-label">Device code</span>
+            <span class="input-wrap input-wrap-lg">
+              <svg class="icon" aria-hidden="true"><use href="#i-key"/></svg>
+              <input id="userCode" type="text" placeholder="ABCD-EFGH"
+                     autocomplete="off" autocapitalize="characters" spellcheck="false" required>
+            </span>
+          </label>
+          <button class="btn btn-primary btn-lg btn-block" type="submit">
+            <span class="btn-label">Continue</span>
+          </button>
+        </form>
+      {% endif %}
+
+      <p class="device-note">
+        <svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg>
+        If you didn't start this, just close this page. Nothing happens until you approve.
+      </p>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/account.js') }}" defer></script>
+{% endblock %}

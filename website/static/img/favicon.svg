@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Pike">
+  <style>
+    /* Adapts to the browser UI: black on light, white on dark. */
+    svg { color: #000000; }
+    @media (prefers-color-scheme: dark) { svg { color: #ffffff; } }
+  </style>
+  <rect width="96" height="96" rx="14" fill="currentColor" opacity="0.08"/>
+  <g transform="translate(9.6 9.6) scale(0.8)"
+     fill="none" stroke="currentColor" stroke-width="6.2" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="12" y="20" width="72" height="46" rx="5"/>
+    <path d="M48 66v11"/>
+    <path d="M31 77h34"/>
+    <path d="M34 57c9-2.5 16 3.5 26-2" stroke-width="5"/>
+    <path d="M40.5 51 58.5 33 53.5 28 35.5 46z"/>
+    <path d="M32.5 54 40.5 51 35.5 46z" fill="currentColor"/>
+    <path d="M35 51.6 38.2 48.4"/>
+  </g>
+</svg>

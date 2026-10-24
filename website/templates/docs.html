@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% include "partials/icons.html" %}
+
+<section class="page-hero">
+  <div class="container">
+    <p class="section-eyebrow">Documentation</p>
+    <h1 class="page-title">Everything you need to run Pike.</h1>
+    <p class="section-lede">
+      Install it, connect a provider, learn the shortcuts and browse the API that
+      powers the desktop app.
+    </p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container docs-layout">
+    <!-- Table of contents -->
+    <aside class="docs-toc">
+      <nav aria-label="On this page">
+        <h4>On this page</h4>
+        <ul>
+          <li><a href="#quickstart">Quick start</a></li>
+          <li><a href="#configure">Configuration</a></li>
+          <li><a href="#providers">Providers</a></li>
+          <li><a href="#workspace">Workspaces</a></li>
+          <li><a href="#shortcuts">Keyboard shortcuts</a></li>
+          <li><a href="#api">API reference</a></li>
+          <li><a href="#sse">Streaming format</a></li>
+          <li><a href="#troubleshooting">Troubleshooting</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <div class="docs-body">
+      <!-- QUICK START -->
+      <article class="docs-section" id="quickstart">
+        <h2>Quick start</h2>
+        <p>Install the dependencies, launch the app, and connect your first provider.</p>
+
+        <div class="code-panel">
+          <div class="code-panel-head">
+            <span class="code-lang">shell</span>
+            <button class="copy-btn" type="button" data-copy-target="qs-cmd">
+              <svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg> Copy
+            </button>
+          </div>
+          <pre id="qs-cmd"><code>pip install -r requirements.txt
+python app.py</code></pre>
+        </div>
+
+        <p>
+          The desktop window opens automatically. On first launch, open
+          <strong>Settings &rsaquo; Connection</strong>, choose a provider, paste an
+          API key and click <strong>Test connection</strong>.
+        </p>
+
+        <div class="callout">
+          <svg class="icon" aria-hidden="true"><use href="#i-key"/></svg>
+          <div>
+            <strong>Where keys are stored.</strong> Pike writes settings to your
+            user data folder, never into the project:
+            <code>%APPDATA%\Pike\settings.json</code> (Windows),
+            <code>~/Library/Application Support/Pike/</code> (macOS) and
+            <code>~/.local/share/pike/</code> (Linux).
+          </div>
+        </div>
+      </article>
+
+      <!-- CONFIG -->
+      <article class="docs-section" id="configure">
+        <h2>Configuration</h2>
+        <p>
+          Copy <code>.env.example</code> to <code>.env</code> or set environment
+          variables directly. Values resolve in this order: environment, then the
+          saved settings file, then built-in defaults.
+        </p>
+
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr><th>Variable</th><th>Default</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>OPENAI_API_KEY</code></td><td><em>empty</em></td><td>Your API key. Overrides the saved key.</td></tr>
+              <tr><td><code>OPENAI_BASE_URL</code></td><td><code>https://api.openai.com/v1</code></td><td>Any OpenAI-compatible endpoint.</td></tr>
+              <tr><td><code>OPENAI_MODEL</code></td><td><code>gpt-4o-mini</code></td><td>Default model on startup.</td></tr>
+              <tr><td><code>PIKE_MODELS</code></td><td><em>built-in list</em></td><td>Override models, e.g. <code>llama3.2:Llama 3.2</code>.</td></tr>
+              <tr><td><code>PIKE_REASONING_EFFORT</code></td><td><code>medium</code></td><td>Thinking level: <code>off</code>, <code>low</code>, <code>medium</code>, <code>high</code>.</td></tr>
+              <tr><td><code>PIKE_HOST</code></td><td><code>127.0.0.1</code></td><td>Bind address.</td></tr>
+              <tr><td><code>PIKE_PORT</code></td><td><code>8765</code></td><td>Port.</td></tr>
+              <tr><td><code>PIKE_DEBUG</code></td><td><code>false</code></td><td>Enable Flask debug mode.</td></tr>
+              <tr><td><code>PIKE_BROWSER_ONLY</code></td><td><code>false</code></td><td>Always use the browser instead of the desktop window.</td></tr>
+              <tr><td><code>PIKE_TIMEOUT</code></td><td><code>120</code></td><td>Provider request timeout in seconds.</td></tr>
+              <tr><td><code>PIKE_SYSTEM_PROMPT</code></td><td><em>friendly assistant</em></td><td>Base system prompt.</td></tr>
+              <tr><td><code>PIKE_DATA_DIR</code></td><td><em>per-user</em></td><td>Where <code>settings.json</code> and <code>history.sqlite3</code> live.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Using a local model (Ollama example)</h3>
+        <div class="code-panel">
+          <div class="code-panel-head">
+            <span class="code-lang">.env</span>
+            <button class="copy-btn" type="button" data-copy-target="ollama-cmd">
+              <svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg> Copy
+            </button>
+          </div>
+          <pre id="ollama-cmd"><code>OPENAI_API_KEY=ollama
+OPENAI_BASE_URL=http://localhost:11434/v1
+OPENAI_MODEL=llama3.2
+PIKE_MODELS=llama3.2:Llama 3.2,qwen2.5:Qwen 2.5</code></pre>
+        </div>
+      </article>
+
+      <!-- PROVIDERS -->
+      <article class="docs-section" id="providers">
+        <h2>Providers</h2>
+        <p>
+          Pike ships with a catalogue of {{ providers|length }} OpenAI-compatible
+          services. The model dropdown always shows every model from every
+          provider; models whose provider has no key yet are tagged
+          <em>Add key</em>.
+        </p>
+
+        <div class="provider-grid provider-grid-docs">
+          {% for provider in providers %}
+            <div class="provider-chip {{ 'is-local' if provider.local else '' }}">
+              <span class="provider-name">{{ provider.name }}</span>
+              <span class="provider-hint">{{ provider.hint }}</span>
+            </div>
+          {% endfor %}
+        </div>
+
+        <h3>Thinking levels</h3>
+        <p>
+          Models flagged as reasoning models expose a <strong>Thinking</strong>
+          dropdown styled like the model selector:
+        </p>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Level</th><th>Behaviour</th></tr></thead>
+            <tbody>
+              <tr><td><code>off</code></td><td>Answer straight away, no thinking section.</td></tr>
+              <tr><td><code>low</code></td><td>Quick reasoning.</td></tr>
+              <tr><td><code>medium</code></td><td>Balanced (default).</td></tr>
+              <tr><td><code>high</code></td><td>Deep reasoning.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <!-- WORKSPACE -->
+      <article class="docs-section" id="workspace">
+        <h2>Workspaces</h2>
+        <p>
+          A workspace is a folder Pike is allowed to work in. Open one and Pike is
+          given a system prompt that lists the files it may touch and tells it to
+          use its tools, which is what turns the chat into a coding agent.
+        </p>
+        <ul class="docs-list">
+          <li><strong>Read</strong> - inspect files and search across the tree.</li>
+          <li><strong>Write</strong> - create or update files you approve.</li>
+          <li><strong>Organise</strong> - create folders, rename and delete.</li>
+          <li><strong>Run</strong> - execute shell commands in an interactive terminal.</li>
+        </ul>
+        <p>Everything is scoped to the open folder, and nothing runs without your say-so.</p>
+      </article>
+
+      <!-- SHORTCUTS -->
+      <article class="docs-section" id="shortcuts">
+        <h2>Keyboard shortcuts</h2>
+        <div class="shortcut-grid">
+          <div class="shortcut"><kbd>Enter</kbd><span>Send message</span></div>
+          <div class="shortcut"><kbd>Shift</kbd> + <kbd>Enter</kbd><span>New line</span></div>
+          <div class="shortcut"><kbd>Ctrl</kbd> + <kbd>K</kbd><span>New chat</span></div>
+          <div class="shortcut"><kbd>Esc</kbd><span>Stop generating</span></div>
+        </div>
+        <p class="muted">On macOS, use <kbd>Cmd</kbd> in place of <kbd>Ctrl</kbd>.</p>
+      </article>
+
+      <!-- API -->
+      <article class="docs-section" id="api">
+        <h2>API reference</h2>
+        <p>
+          The backend is a small JSON + SSE API - handy if you want to embed the UI
+          elsewhere or script Pike from another tool.
+        </p>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Method</th><th>Endpoint</th><th>Purpose</th></tr></thead>
+            <tbody>
+              <tr><td><span class="method get">GET</span></td><td><code>/</code></td><td>The single-page frontend</td></tr>
+              <tr><td><span class="method get">GET</span></td><td><code>/healthz</code></td><td>Liveness probe</td></tr>
+              <tr><td><span class="method get">GET</span></td><td><code>/api/status</code></td><td>Connection status, models, active model</td></tr>
+              <tr><td><span class="method get">GET</span></td><td><code>/api/update</code></td><td>Check for a newer release</td></tr>
+              <tr><td><span class="method get">GET</span> / <span class="method post">POST</span></td><td><code>/api/settings</code></td><td>Read / update key, base URL, default model</td></tr>
+              <tr><td><span class="method post">POST</span></td><td><code>/api/settings/test</code></td><td>Send a tiny test prompt</td></tr>
+              <tr><td><span class="method post">POST</span></td><td><code>/api/chat</code></td><td>Non-streaming completion</td></tr>
+              <tr><td><span class="method post">POST</span></td><td><code>/api/chat/stream</code></td><td>Streaming completion (SSE)</td></tr>
+              <tr><td><span class="method get">GET</span></td><td><code>/api/conversations?q=</code></td><td>List / search conversations</td></tr>
+              <tr><td><span class="method post">POST</span></td><td><code>/api/conversations</code></td><td>Create an empty conversation</td></tr>
+              <tr><td><span class="method get">GET</span></td><td><code>/api/conversations/&lt;id&gt;</code></td><td>Fetch one conversation</td></tr>
+              <tr><td><span class="method put">PUT</span></td><td><code>/api/conversations/&lt;id&gt;</code></td><td>Replace messages</td></tr>
+              <tr><td><span class="method patch">PATCH</span></td><td><code>/api/conversations/&lt;id&gt;</code></td><td>Rename</td></tr>
+              <tr><td><span class="method delete">DELETE</span></td><td><code>/api/conversations/&lt;id&gt;</code></td><td>Delete one</td></tr>
+              <tr><td><span class="method delete">DELETE</span></td><td><code>/api/conversations</code></td><td>Delete all</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <!-- SSE -->
+      <article class="docs-section" id="sse">
+        <h2>Streaming format</h2>
+        <p>The streaming endpoint emits Server-Sent Events with a small set of event types.</p>
+        <div class="code-panel">
+          <div class="code-panel-head">
+            <span class="code-lang">text/event-stream</span>
+            <button class="copy-btn" type="button" data-copy-target="sse-cmd">
+              <svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg> Copy
+            </button>
+          </div>
+          <pre id="sse-cmd"><code>event: delta
+data: {"text": "Hello"}
+
+event: done
+data: {"reply": "Hello world", "elapsed": 1.24}</code></pre>
+        </div>
+      </article>
+
+      <!-- TROUBLESHOOTING -->
+      <article class="docs-section" id="troubleshooting">
+        <h2>Troubleshooting</h2>
+        <div class="faq">
+          <details>
+            <summary>“No API key configured”</summary>
+            <p>Open Settings &rsaquo; Connection and save a key, or set <code>OPENAI_API_KEY</code> and restart.</p>
+          </details>
+          <details>
+            <summary>The desktop window is blank / pywebview fails</summary>
+            <p>Make sure <code>pywebview</code> installed correctly for your OS, or run <code>python app.py --browser</code>. On Linux you may need a webkit backend such as <code>python3-gi</code> and <code>gir1.2-webkit2-4.1</code>.</p>
+          </details>
+          <details>
+            <summary>“Could not reach the AI provider”</summary>
+            <p>Check your connection and that the <strong>Base URL</strong> matches your provider.</p>
+          </details>
+          <details>
+            <summary>401 / 403 errors</summary>
+            <p>The key is invalid or lacks access to the model. Try <strong>Test connection</strong> in the settings dialog.</p>
+          </details>
+          <details>
+            <summary>Port already in use</summary>
+            <p>Start with <code>python app.py --port 9000</code>.</p>
+          </details>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+{% endblock %}

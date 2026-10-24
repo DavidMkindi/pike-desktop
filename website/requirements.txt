@@ -1,0 +1,11 @@
+# Pike website / account server dependencies.
+# A standalone Flask site, separate from the desktop app.
+Flask>=3.0.0
+
+# Postgres driver - used when DATABASE_URL is set (e.g. Vercel + Neon) so accounts
+# persist instead of living in an ephemeral /tmp SQLite file.
+psycopg[binary]>=3.1.0
+psycopg_pool>=3.2.0
+
+# Production WSGI server (Linux hosts only - gunicorn does not build on Windows).
+gunicorn>=21.2.0; sys_platform != "win32"

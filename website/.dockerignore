@@ -1,0 +1,25 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Flask runtime data (accounts live here - never bake into an image)
+instance/
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+.flaskenv
+.env
+.env.local
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.git/
+.gitignore
+README.md
+render.yaml
+tools/preview*.png

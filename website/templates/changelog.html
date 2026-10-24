@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-hero">
+  <div class="container">
+    <p class="section-eyebrow">Changelog</p>
+    <h1 class="page-title">What is new in Pike.</h1>
+    <p class="section-lede">Every notable change to the desktop app, newest first.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="timeline">
+      {% for release in releases %}
+        <article class="release">
+          <div class="release-marker">
+            <span class="release-dot"></span>
+          </div>
+          <div class="release-card">
+            <header class="release-head">
+              <h2>v{{ release.version }}</h2>
+              {% if release.badge %}<span class="tag tag-accent">{{ release.badge }}</span>{% endif %}
+              <time datetime="{{ release.date }}">{{ release.date }}</time>
+            </header>
+            <ul class="release-notes">
+              {% for note in release.notes %}
+                <li>{{ note }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}

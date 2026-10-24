@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Flask
+instance/
+.flaskenv
+
+# Environment / secrets
+.env
+.env.*
+.env.local
+.env.production
+
+# Vercel
+.vercel
+node_modules/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Local investigation scripts and sources extracted from old deployments.
+_dep_src/
+dep_raw.json
+dep_account_decoded.py
+_inspect_*.py
+_vercel_*.py
+_pgtest.mjs
+*.log

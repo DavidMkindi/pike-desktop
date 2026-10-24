@@ -1,0 +1,19 @@
+{
+  "name": "pike-website",
+  "description": "Pike website and account server (identity, dashboard, device sync)",
+  "runtime": "python",
+  "buildCommand": "pip install -r requirements.txt",
+  "startCommand": "gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 60",
+  "healthCheckPath": "/healthz",
+  "envVars": [
+    {
+      "key": "PIKE_SECRET_KEY",
+      "description": "Secret used to sign session cookies. Set a long random value.",
+      "sync": false
+    },
+    {
+      "key": "PIKE_ACCOUNT_DB",
+      "description": "Optional path to the SQLite file (point this at a mounted disk to persist accounts)."
+    }
+  ]
+}

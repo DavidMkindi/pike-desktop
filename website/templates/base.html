@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#141414">
+  <meta name="description" content="{{ description }}">
+  <title>{{ title }}</title>
+
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/favicon.svg') }}">
+  <link rel="canonical" href="{{ request.url }}">
+
+  {% block head_meta %}
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Pike">
+  <meta property="og:title" content="{{ title }}">
+  <meta property="og:description" content="{{ description }}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ title }}">
+  <meta name="twitter:description" content="{{ description }}">
+  {% endblock %}
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/site.css') }}">
+  <script>
+    // Match the desktop app: apply the saved theme before first paint.
+    (function () {
+      try {
+        var saved = localStorage.getItem('pike.site.theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', saved === 'light' ? 'light' : 'dark');
+        document.documentElement.style.colorScheme = saved;
+      } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+</head>
+<body data-page="{{ page }}" class="{% block body_class %}{% endblock %}">
+
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  {% block header %}{% include "partials/nav.html" %}{% endblock %}
+
+  <main id="main">
+    {% block content %}{% endblock %}
+  </main>
+
+  {% block footer %}{% include "partials/footer.html" %}{% endblock %}
+
+  <script src="{{ url_for('static', filename='js/site.js') }}" defer></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

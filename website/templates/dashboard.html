@@ -1,0 +1,322 @@
+{% extends "base.html" %}
+
+{% block header %}{% endblock %}
+{% block footer %}{% endblock %}
+{% block body_class %}app-body{% endblock %}
+
+{% block content %}
+{% include "partials/icons.html" %}
+
+{% set name = user.name or user.email.split('@')[0] %}
+{% set peak = (dashboard.daily_filled|map(attribute='tokens')|max) or 1 %}
+
+<div class="app-shell">
+  <!-- ── Sidebar ───────────────────────────────────────────────────── -->
+  <aside class="app-sidebar" id="appSidebar" aria-label="Dashboard navigation">
+    <div class="sidebar-head">
+      <a class="brand" href="{{ url_for('index') }}" aria-label="Pike home">
+        <span class="brand-logo">{% with logo_size = 28 %}{% include "partials/logo.html" %}{% endwith %}</span>
+        <span class="brand-name">Pike</span>
+      </a>
+      <button class="sidebar-close" id="sidebarClose" type="button" aria-label="Close navigation">
+        <svg class="icon" aria-hidden="true"><use href="#i-x"/></svg>
+      </button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <p class="sidebar-label">Overview</p>
+      <a class="sidebar-link is-active" data-nav href="#overview">
+        <svg class="icon" aria-hidden="true"><use href="#i-layers"/></svg> <span>Dashboard</span>
+      </a>
+      <a class="sidebar-link" data-nav href="#devices">
+        <svg class="icon" aria-hidden="true"><use href="#i-device"/></svg> <span>Devices</span>
+        <span class="sidebar-count">{{ dashboard.devices|length }}</span>
+      </a>
+      <a class="sidebar-link" data-nav href="#activity">
+        <svg class="icon" aria-hidden="true"><use href="#i-history"/></svg> <span>Activity</span>
+      </a>
+      <a class="sidebar-link" data-nav href="#usage">
+        <svg class="icon" aria-hidden="true"><use href="#i-bar-chart"/></svg> <span>Usage</span>
+      </a>
+      <a class="sidebar-link" data-nav href="#settings">
+        <svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg> <span>Settings</span>
+      </a>
+
+      <p class="sidebar-label">Quick actions</p>
+      <a class="sidebar-link" href="{{ url_for('account.device_page') }}">
+        <svg class="icon" aria-hidden="true"><use href="#i-zap"/></svg> <span>Connect a device</span>
+      </a>
+      <a class="sidebar-link" href="{{ url_for('docs') }}">
+        <svg class="icon" aria-hidden="true"><use href="#i-code"/></svg> <span>Documentation</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-user">
+      <span class="avatar" aria-hidden="true">{{ (user.name or user.email)[0]|upper }}</span>
+      <div class="sidebar-user-meta">
+        <strong>{{ name }}</strong>
+        <span>{{ user.email }}</span>
+      </div>
+      <a class="sidebar-user-out" href="{{ url_for('account.logout') }}" title="Sign out" aria-label="Sign out">
+        <svg class="icon" aria-hidden="true"><use href="#i-log-out"/></svg>
+      </a>
+    </div>
+  </aside>
+
+  <div class="sidebar-scrim" id="sidebarScrim" aria-hidden="true"></div>
+
+  <!-- ── Main column ───────────────────────────────────────────────── -->
+  <div class="app-main">
+    <header class="app-topbar">
+      <button class="sidebar-toggle" id="sidebarToggle" type="button"
+              aria-label="Open navigation" aria-controls="appSidebar" aria-expanded="false">
+        <span class="nav-toggle-bar"></span>
+        <span class="nav-toggle-bar"></span>
+        <span class="nav-toggle-bar"></span>
+      </button>
+      <h1 class="topbar-title">Dashboard</h1>
+      <div class="topbar-actions">
+        <button class="icon-btn" id="theme-toggle" type="button"
+                aria-label="Toggle colour theme" title="Toggle theme">
+          <svg viewBox="0 0 24 24" class="icon icon-moon" aria-hidden="true">
+            <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+          </svg>
+          <svg viewBox="0 0 24 24" class="icon icon-sun" aria-hidden="true">
+            <circle cx="12" cy="12" r="4"/>
+            <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>
+          </svg>
+        </button>
+        <a class="btn btn-primary btn-sm topbar-cta" href="{{ url_for('account.device_page') }}">
+          <svg class="icon" aria-hidden="true"><use href="#i-device"/></svg> Connect a device
+        </a>
+      </div>
+    </header>
+
+    <div class="app-content">
+
+      <!-- Page head -->
+      <section class="page-head" id="overview">
+        <div class="page-head-text">
+          <p class="dash-eyebrow">Overview</p>
+          <h2>Welcome back, {{ name }}</h2>
+          <p class="dash-sub">
+            <span class="dash-chip">{{ user.email }}</span>
+            <span class="dash-chip dash-chip--plan">{{ user.plan|capitalize }} plan</span>
+            <span class="dash-chip">Member since {{ user.created_at[:10] }}</span>
+          </p>
+        </div>
+      </section>
+
+      <!-- KPI cards -->
+      <div class="stat-grid">
+        <div class="stat-card">
+          <span class="stat-icon"><svg class="icon" aria-hidden="true"><use href="#i-device"/></svg></span>
+          <div class="stat-body">
+            <span class="stat-value">{{ dashboard.devices|length }}</span>
+            <span class="stat-label">Connected devices</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <span class="stat-icon"><svg class="icon" aria-hidden="true"><use href="#i-zap"/></svg></span>
+          <div class="stat-body">
+            <span class="stat-value">{{ (dashboard.totals.tokens_in + dashboard.totals.tokens_out)|human_tokens }}</span>
+            <span class="stat-label">Tokens used</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <span class="stat-icon"><svg class="icon" aria-hidden="true"><use href="#i-bar-chart"/></svg></span>
+          <div class="stat-body">
+            <span class="stat-value">{{ dashboard.totals.requests }}</span>
+            <span class="stat-label">Total requests</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <span class="stat-icon"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg></span>
+          <div class="stat-body">
+            <span class="stat-value">{{ dashboard.today.requests }}</span>
+            <span class="stat-label">Requests today</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Activity chart -->
+      <section class="panel panel--chart">
+        <header class="panel-head panel-head--row">
+          <div>
+            <h2><svg class="icon" aria-hidden="true"><use href="#i-bar-chart"/></svg> Activity</h2>
+            <p>Tokens per day over the last 14 days.</p>
+          </div>
+          <div class="chart-legend">
+            <span class="chart-legend-item"><i class="dot dot--accent"></i> Tokens</span>
+          </div>
+        </header>
+        {% if dashboard.totals.requests %}
+          <div class="chart" role="img" aria-label="Token usage over the last 14 days">
+            {% for day in dashboard.daily_filled %}
+              <div class="chart-col" title="{{ day.requests }} requests · {{ day.tokens|human_tokens }} tokens on {{ day.day }}">
+                <div class="chart-track">
+                  <div class="chart-bar{% if loop.last %} is-today{% endif %}"
+                       style="height: {{ (day.tokens / peak * 100)|round(1) }}%"></div>
+                </div>
+                <span class="chart-label{% if loop.last %} is-today{% endif %}">{{ day.day_num }}</span>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="chart-empty">
+            <svg class="icon" aria-hidden="true"><use href="#i-bar-chart"/></svg>
+            <p>No usage recorded yet. Once you chat in the desktop app or editor, your activity appears here.</p>
+          </div>
+        {% endif %}
+      </section>
+
+      <!-- Devices + Activity -->
+      <div class="dash-grid">
+        <section class="panel" id="devices">
+          <header class="panel-head">
+            <h2><svg class="icon" aria-hidden="true"><use href="#i-device"/></svg> Devices</h2>
+            <p>Every app signed in to your account. Revoke anything you don't recognise.</p>
+          </header>
+          <ul class="device-list" id="deviceList">
+            {% for device in dashboard.devices %}
+              <li class="device-row" data-device="{{ device.id }}">
+                <span class="device-icon" data-kind="{{ device.kind }}">
+                  <svg class="icon" aria-hidden="true">
+                    <use href="#i-{{ 'code' if device.kind == 'vscode' else 'monitor' }}"/>
+                  </svg>
+                </span>
+                <div class="device-meta">
+                  <strong>{{ device.name }}</strong>
+                  <span class="device-sub">
+                    {{ device.kind|capitalize }}
+                    {%- if device.platform %} · {{ device.platform }}{% endif %}
+                    {%- if device.app_version %} · v{{ device.app_version }}{% endif %}
+                  </span>
+                  <span class="device-seen">Last active {{ device.last_seen|time_ago }}</span>
+                </div>
+                <button class="btn btn-ghost btn-sm danger revoke-btn" data-device="{{ device.id }}"
+                        data-name="{{ device.name }}">
+                  <svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg>
+                  <span class="btn-label">Revoke</span>
+                </button>
+              </li>
+            {% else %}
+              <li class="empty-row">
+                <svg class="icon" aria-hidden="true"><use href="#i-device"/></svg>
+                <p>No devices yet. Open the desktop app and choose “Sign in with Pike”.</p>
+                <a class="btn btn-ghost btn-sm" href="{{ url_for('account.device_page') }}">Connect a device</a>
+              </li>
+            {% endfor %}
+          </ul>
+        </section>
+
+        <section class="panel" id="activity">
+          <header class="panel-head">
+            <h2><svg class="icon" aria-hidden="true"><use href="#i-history"/></svg> Recent activity</h2>
+            <p>Sign-ins, chats and workspace actions across your devices.</p>
+          </header>
+          <ul class="activity-list" id="activityList">
+            {% for item in dashboard.activity %}
+              <li class="activity-row">
+                <span class="activity-dot" data-source="{{ item.source }}"></span>
+                <div class="activity-body">
+                  <span class="activity-detail">{{ item.detail or item.kind }}</span>
+                  <span class="activity-meta">{{ item.source|capitalize }} · {{ item.created_at|time_ago }}</span>
+                </div>
+              </li>
+            {% else %}
+              <li class="empty-row">
+                <svg class="icon" aria-hidden="true"><use href="#i-history"/></svg>
+                <p>Activity will appear here once you start using Pike.</p>
+              </li>
+            {% endfor %}
+          </ul>
+        </section>
+      </div>
+
+      <!-- Usage + Models -->
+      <div class="dash-grid" id="usage">
+        <section class="panel">
+          <header class="panel-head">
+            <h2><svg class="icon" aria-hidden="true"><use href="#i-layers"/></svg> Usage by app</h2>
+            <p>Where your requests come from.</p>
+          </header>
+          {% if dashboard.by_source %}
+            {% set max_requests = dashboard.by_source|map(attribute='requests')|max %}
+            <div class="usage-bars">
+              {% for row in dashboard.by_source %}
+                <div class="usage-bar-row">
+                  <span class="usage-bar-label">{{ row.source|capitalize }}</span>
+                  <div class="usage-bar-track">
+                    <div class="usage-bar-fill" style="width: {{ (row.requests / max_requests * 100)|round(1) }}%"></div>
+                  </div>
+                  <span class="usage-bar-value">{{ row.requests }}</span>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="panel-empty">No usage recorded yet.</p>
+          {% endif %}
+        </section>
+
+        <section class="panel">
+          <header class="panel-head">
+            <h2><svg class="icon" aria-hidden="true"><use href="#i-brain"/></svg> Top models</h2>
+            <p>Your most-used models.</p>
+          </header>
+          {% if dashboard.by_model %}
+            <ul class="model-usage">
+              {% for row in dashboard.by_model %}
+                <li>
+                  <code>{{ row.model or 'unknown' }}</code>
+                  <span>{{ row.requests }} req · {{ row.tokens|human_tokens }} tok</span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="panel-empty">Nothing yet.</p>
+          {% endif %}
+        </section>
+      </div>
+
+      <!-- Account settings -->
+      <section class="panel" id="settings">
+        <header class="panel-head">
+          <h2><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg> Account settings</h2>
+          <p>These preferences sync to every device you sign in on.</p>
+        </header>
+        <form class="settings-grid" id="profileForm">
+          <label class="field">
+            <span class="field-label">Display name</span>
+            <span class="input-wrap">
+              <svg class="icon" aria-hidden="true"><use href="#i-user"/></svg>
+              <input id="profileName" type="text" value="{{ user.name }}" placeholder="Your name">
+            </span>
+          </label>
+          <label class="field">
+            <span class="field-label">Email <em>read only</em></span>
+            <span class="input-wrap input-wrap--muted">
+              <svg class="icon" aria-hidden="true"><use href="#i-mail"/></svg>
+              <input type="email" value="{{ user.email }}" readonly tabindex="-1">
+            </span>
+          </label>
+          <label class="field">
+            <span class="field-label">New password <em>leave blank to keep</em></span>
+            <span class="input-wrap">
+              <svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg>
+              <input id="profilePassword" type="password" autocomplete="new-password" placeholder="••••••••">
+            </span>
+          </label>
+          <div class="settings-grid-actions">
+            <button class="btn btn-primary" type="submit">Save changes</button>
+          </div>
+        </form>
+      </section>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}" defer></script>
+{% endblock %}

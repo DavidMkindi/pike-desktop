@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% include "partials/icons.html" %}
+
+<section class="page-hero">
+  <div class="container">
+    <p class="section-eyebrow">Contact</p>
+    <h1 class="page-title">Get in touch.</h1>
+    <p class="section-lede">
+      Found a bug, have a feature idea, or just want to say hello? Pick the channel
+      that suits you.
+    </p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="contact-grid">
+      <a class="contact-card" href="{{ product.github }}issues" rel="noopener">
+        <div class="feature-icon">
+          <svg class="icon" aria-hidden="true"><use href="#i-code"/></svg>
+        </div>
+        <h3>Report an issue</h3>
+        <p>The fastest route for bugs and reproducible problems. Include your OS and Pike version.</p>
+        <span class="contact-link">Open the issue tracker <svg class="icon" aria-hidden="true"><use href="#i-external"/></svg></span>
+      </a>
+
+      <a class="contact-card" href="{{ product.github }}/discussions" rel="noopener">
+        <div class="feature-icon">
+          <svg class="icon" aria-hidden="true"><use href="#i-globe"/></svg>
+        </div>
+        <h3>Discuss and request</h3>
+        <p>Ask questions, share setups and vote on ideas for future releases.</p>
+        <span class="contact-link">Join the discussion <svg class="icon" aria-hidden="true"><use href="#i-external"/></svg></span>
+      </a>
+
+      <a class="contact-card" href="mailto:hello@pike.ai">
+        <div class="feature-icon">
+          <svg class="icon" aria-hidden="true"><use href="#i-key"/></svg>
+        </div>
+        <h3>Email us</h3>
+        <p>For anything private - security reports, partnerships or press.</p>
+        <span class="contact-link">hello@pike.ai <svg class="icon" aria-hidden="true"><use href="#i-external"/></svg></span>
+      </a>
+    </div>
+  </div>
+</section>
+{% endblock %}

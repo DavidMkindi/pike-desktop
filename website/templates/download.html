@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% include "partials/icons.html" %}
+
+<section class="page-hero">
+  <div class="container">
+    <p class="section-eyebrow">Download</p>
+    <h1 class="page-title">Get Pike {{ product.version }}</h1>
+    <p class="section-lede">
+      A single self-contained build for each platform, or run it from source in a
+      minute. Pike is free to use and modify.
+    </p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="download-grid">
+      {% for platform in platforms %}
+        <article class="download-card {{ 'is-primary' if platform.primary else '' }}">
+          {% if platform.primary %}<span class="download-badge">Most popular</span>{% endif %}
+          <div class="download-icon">
+            <svg class="icon" aria-hidden="true"><use href="#i-{{ platform.icon }}"/></svg>
+          </div>
+          <h3>{{ platform.name }}</h3>
+          <p class="download-detail">{{ platform.detail }}</p>
+          <a class="btn {{ 'btn-primary' if platform.primary else 'btn-ghost' }} btn-block"
+             href="{{ product.releases }}" rel="noopener">
+            Download {{ platform.file }}
+            <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+          </a>
+        </article>
+      {% endfor %}
+    </div>
+
+    <p class="download-note">
+      Releases are published on the project's release page. Builds are unsigned;
+      your OS may ask you to confirm before the first launch.
+    </p>
+  </div>
+</section>
+
+<section class="section section-alt" id="source">
+  <div class="container">
+    <div class="section-head">
+      <p class="section-eyebrow">From source</p>
+      <h2 class="section-title">Run it with Python.</h2>
+      <p class="section-lede">
+        Pike runs on Python {{ product.python }} and installs in a couple of
+        commands. This is the best option on Linux, or if you want to hack on it.
+      </p>
+    </div>
+
+    <div class="code-panel">
+      <div class="code-panel-head">
+        <span class="code-lang">shell</span>
+        <button class="copy-btn" type="button" data-copy-target="src-cmd">
+          <svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg> Copy
+        </button>
+      </div>
+      <pre id="src-cmd"><code># clone and enter the project
+git clone {{ product.github }}.git
+cd pike
+
+# create an isolated environment (optional but recommended)
+python -m venv .venv
+.venv\Scripts\activate      # Windows
+source .venv/bin/activate   # macOS / Linux
+
+# install dependencies and run
+pip install -r requirements.txt
+python app.py</code></pre>
+    </div>
+
+    <div class="table-wrap">
+      <table class="table">
+        <caption>Launch modes</caption>
+        <thead>
+          <tr><th>Command</th><th>What it does</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>python app.py</code></td><td>Desktop window (pywebview)</td></tr>
+          <tr><td><code>python app.py --browser</code></td><td>Opens in your default browser</td></tr>
+          <tr><td><code>python app.py --server</code></td><td>Flask server only, no window</td></tr>
+          <tr><td><code>python app.py --port 9000</code></td><td>Use a custom port</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-head">
+      <p class="section-eyebrow">Requirements</p>
+      <h2 class="section-title">What you will need.</h2>
+    </div>
+    <div class="spec-grid">
+      <div class="spec">
+        <h4>Operating system</h4>
+        <p>Windows 10 (1809+), Windows 11, macOS 12+, or a modern Linux desktop.</p>
+      </div>
+      <div class="spec">
+        <h4>Runtime</h4>
+        <p>Python {{ product.python }} when running from source. Bundled builds include it.</p>
+      </div>
+      <div class="spec">
+        <h4>An API key</h4>
+        <p>Any OpenAI-compatible provider - OpenAI, Groq, OpenRouter, Ollama and more.</p>
+      </div>
+      <div class="spec">
+        <h4>Disk</h4>
+        <p>A few hundred megabytes for the app and your local history database.</p>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

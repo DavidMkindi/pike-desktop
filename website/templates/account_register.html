@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block header %}{% endblock %}
+{% block footer %}{% endblock %}
+{% block body_class %}auth-body{% endblock %}
+
+{% block content %}
+{% include "partials/icons.html" %}
+
+<section class="auth-shell auth-shell--solo">
+  <div class="auth-orb auth-orb-a" aria-hidden="true"></div>
+  <div class="auth-orb auth-orb-b" aria-hidden="true"></div>
+
+  <div class="auth-standalone">
+    <a class="auth-brand" href="{{ url_for('index') }}" aria-label="Pike home">
+      <span class="brand-logo">{% with logo_size = 34 %}{% include "partials/logo.html" %}{% endwith %}</span>
+      <span class="brand-name">Pike</span>
+    </a>
+
+    <div class="auth-card auth-card--solo">
+      <header class="auth-card-head">
+        <h1>Create your account</h1>
+        <p>Free forever. Links the desktop app and editor to one identity.</p>
+      </header>
+
+      <form id="registerForm" class="auth-form" novalidate>
+        <div class="form-error" id="formError" hidden role="alert"></div>
+
+        <label class="field">
+          <span class="field-label">Name <em>optional</em></span>
+          <span class="input-wrap">
+            <svg class="icon" aria-hidden="true"><use href="#i-user"/></svg>
+            <input id="name" name="name" type="text" autocomplete="name" placeholder="Ada Lovelace" autofocus>
+          </span>
+        </label>
+
+        <label class="field">
+          <span class="field-label">Email</span>
+          <span class="input-wrap">
+            <svg class="icon" aria-hidden="true"><use href="#i-mail"/></svg>
+            <input id="email" name="email" type="email" autocomplete="email"
+                   inputmode="email" placeholder="you@example.com" required>
+          </span>
+        </label>
+
+        <label class="field">
+          <span class="field-label">Password <em>min. 8 characters</em></span>
+          <span class="input-wrap">
+            <svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg>
+            <input id="password" name="password" type="password" autocomplete="new-password"
+                   placeholder="Choose a password" minlength="8" required>
+            <button class="icon-btn" type="button" data-toggle-password="password"
+                    title="Show password" aria-label="Show password">
+              <svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg>
+            </button>
+          </span>
+        </label>
+
+        <input type="hidden" id="next" name="next" value="{{ next }}">
+
+        <button class="btn btn-primary btn-lg btn-block" type="submit" id="submitBtn">
+          <span class="btn-label">Create account</span>
+        </button>
+      </form>
+
+      <p class="auth-alt">
+        Already have an account?
+        <a href="{{ url_for('account.login') }}{% if next %}?next={{ next }}{% endif %}">Sign in</a>
+      </p>
+    </div>
+
+    <p class="auth-footnote">
+      Bring your own API keys &middot; no credit card &middot; delete anytime.
+      <a href="{{ url_for('index') }}">Back to home</a>
+    </p>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/account.js') }}" defer></script>
+{% endblock %}

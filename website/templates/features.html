@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% include "partials/icons.html" %}
+
+<section class="page-hero">
+  <div class="container">
+    <p class="section-eyebrow">Features</p>
+    <h1 class="page-title">Everything Pike does, in one place.</h1>
+    <p class="section-lede">
+      A desktop chat app that also happens to be a capable coding agent - without
+      giving up your keys, your history or your provider.
+    </p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="feature-grid feature-grid-lg">
+      {% for feature in features %}
+        <article class="feature-card">
+          <div class="feature-icon">
+            <svg class="icon" aria-hidden="true"><use href="#i-{{ feature.icon }}"/></svg>
+          </div>
+          <h3>{{ feature.title }}</h3>
+          <p>{{ feature.body }}</p>
+        </article>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="section section-alt">
+  <div class="container">
+    <div class="section-head">
+      <p class="section-eyebrow">Deep dive</p>
+      <h2 class="section-title">The details that matter.</h2>
+    </div>
+
+    <div class="detail-list">
+      <div class="detail-item">
+        <h3>Streaming that feels instant</h3>
+        <p>
+          Replies arrive over Server-Sent Events as <code>start</code>,
+          <code>delta</code>, <code>done</code> and <code>error</code> events. The
+          UI renders Markdown as it streams, so code blocks and formatting settle
+          in place while the model is still writing.
+        </p>
+      </div>
+      <div class="detail-item">
+        <h3>Thinking levels</h3>
+        <p>
+          For reasoning models, a Thinking picker appears next to the model
+          selector: <code>off</code>, <code>low</code>, <code>medium</code> or
+          <code>high</code>. The reply grows a collapsible reasoning section with
+          an elapsed-time badge - open it when you are curious, ignore it when you
+          are not.
+        </p>
+      </div>
+      <div class="detail-item">
+        <h3>A workspace, not just a chat</h3>
+        <p>
+          Open a folder and Pike receives a system prompt describing the files it
+          may touch. It can read, write, search, create folders and run shell
+          commands through the same tools the UI uses - all scoped to that folder.
+        </p>
+      </div>
+      <div class="detail-item">
+        <h3>Providers stay independent</h3>
+        <p>
+          Keys are stored per provider. Adding an OpenAI key never hides your Groq
+          or Ollama models; models whose provider has no key yet are tagged
+          <em>Add key</em> and simply prompt you to configure that provider.
+        </p>
+      </div>
+      <div class="detail-item">
+        <h3>Local history you can search</h3>
+        <p>
+          Every conversation is written to a SQLite file in your user data folder.
+          Search, rename, archive or delete threads from the sidebar, and clear
+          everything with a single action when you want a clean slate.
+        </p>
+      </div>
+      <div class="detail-item">
+        <h3>Light and dark, by design</h3>
+        <p>
+          A restrained grey theme with a muted blue accent, a full light theme, and
+          a compact, responsive layout. The same tokens power the desktop app and
+          the VS Code extension, so everything feels like one product.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="cta-panel">
+      <div class="cta-glow" aria-hidden="true"></div>
+      <h2>Try it for yourself.</h2>
+      <p>Pike is free to download and works with the key you already have.</p>
+      <div class="hero-actions center">
+        <a class="btn btn-primary btn-lg" href="{{ url_for('download') }}">
+          Download Pike
+          <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

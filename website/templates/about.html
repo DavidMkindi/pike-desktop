@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% include "partials/icons.html" %}
+
+<section class="page-hero">
+  <div class="container">
+    <p class="section-eyebrow">About</p>
+    <h1 class="page-title">A quieter way to work with AI.</h1>
+    <p class="section-lede">
+      Pike started as a simple question: what if the AI app got out of the way and
+      let you use the models you already have?
+    </p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container prose">
+    <h2>Why Pike exists</h2>
+    <p>
+      Most AI chat apps want to be your only provider, your only account and your
+      only place for data. Pike takes the opposite approach. It is a thin,
+      local-first client that talks to any OpenAI-compatible endpoint, keeps your
+      keys and history on your own disk, and gets out of the way once you are
+      working.
+    </p>
+
+    <h2>What that means in practice</h2>
+    <ul class="docs-list">
+      <li><strong>You own the key.</strong> No proxy accounts, no rate limits imposed by us.</li>
+      <li><strong>You own the history.</strong> A local SQLite file, searchable and deletable.</li>
+      <li><strong>You pick the model.</strong> Swap providers per conversation without losing anything.</li>
+      <li><strong>You stay in control.</strong> Workspace tools only act on the folder you opened.</li>
+    </ul>
+
+    <h2>One product, several surfaces</h2>
+    <p>
+      The same design tokens and behaviour power three things: the desktop app, the
+      browser mode and the VS Code extension. Learn Pike once and it feels familiar
+      everywhere.
+    </p>
+
+    <h2>Free, and staying that way</h2>
+    <p>
+      Pike is free to use and modify. You pay only your provider for the tokens you
+      use - there is no Pike subscription and no markup on top.
+    </p>
+
+    <div class="callout">
+      <svg class="icon" aria-hidden="true"><use href="#i-sparkles"/></svg>
+      <div>
+        <strong>Built with care.</strong> Pike is a small project made by someone who
+        wanted a better thinking partner. Enjoy yours.
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

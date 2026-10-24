@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% include "partials/icons.html" %}
+
+<!-- ============================== HERO ============================== -->
+<section class="hero">
+  <div class="hero-glow" aria-hidden="true"></div>
+  <div class="container hero-inner">
+    <div class="hero-copy">
+      <a class="pill" href="{{ url_for('changelog') }}">
+        <span class="pill-dot"></span>
+        Pike {{ product.version }} is out
+        <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+      </a>
+
+      <h1 class="hero-title">
+        Your thinking partner,<br>
+        <span class="grad-text">right on your desktop.</span>
+      </h1>
+
+      <p class="hero-lede">
+        Pike is a focused, local-first AI workspace. Stream answers token by token,
+        watch reasoning models think, open a folder and let it read, write and run
+        code - with any OpenAI-compatible provider you already trust.
+      </p>
+
+      <div class="hero-actions">
+        <a class="btn btn-primary btn-lg" href="{{ url_for('download') }}">
+          Download for free
+          <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+        </a>
+        <a class="btn btn-ghost btn-lg" href="{{ url_for('docs') }}#quickstart">
+          Read the docs
+        </a>
+      </div>
+
+      <ul class="hero-facts">
+        <li><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg> No account, no sign-up</li>
+        <li><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg> Keys stay on your machine</li>
+        <li><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg> {{ providers|length }}+ providers</li>
+      </ul>
+    </div>
+
+    <!-- App preview window -->
+    <div class="hero-preview" aria-hidden="true">
+      <div class="preview-window">
+        <div class="preview-titlebar">
+          <span class="dot dot-red"></span>
+          <span class="dot dot-amber"></span>
+          <span class="dot dot-green"></span>
+          <span class="preview-title">Pike</span>
+        </div>
+        <div class="preview-body">
+          <aside class="preview-sidebar">
+            <div class="preview-search">Search chats</div>
+            <div class="preview-item is-active">Design a rate limiter</div>
+            <div class="preview-item">Refactor parser.py</div>
+            <div class="preview-item">Explain this regex</div>
+            <div class="preview-item">SQL window functions</div>
+          </aside>
+          <div class="preview-main">
+            <div class="preview-msg preview-user">Summarise the workspace tree.</div>
+            <div class="preview-msg preview-ai">
+              <div class="preview-thinking">
+                <span class="preview-thinking-dot"></span> Thinking &middot; 2.1s
+              </div>
+              <p>Your project has <strong>4 modules</strong> under <code>src/</code>.</p>
+              <pre class="preview-code"><code>src/
+  app.py
+  workspace.py
+  terminal.py</code></pre>
+              <div class="preview-composer">
+                <span>Ask Pike anything&hellip;</span>
+                <span class="preview-send"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== PROVIDERS ============================== -->
+<section class="section section-alt">
+  <div class="container">
+    <p class="section-eyebrow">Plays well with others</p>
+    <h2 class="section-title">One client. Every model you already pay for.</h2>
+    <p class="section-lede">
+      Pike speaks the OpenAI-compatible protocol. Add a key for one provider and
+      every other model stays available - nothing is hidden.
+    </p>
+
+    <div class="provider-marquee">
+      <div class="provider-grid">
+        {% for provider in providers %}
+          <div class="provider-chip {{ 'is-local' if provider.local else '' }}">
+            <span class="provider-name">{{ provider.name }}</span>
+            <span class="provider-hint">{{ provider.hint }}</span>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== FEATURES ============================== -->
+<section class="section">
+  <div class="container">
+    <div class="section-head">
+      <p class="section-eyebrow">Why Pike</p>
+      <h2 class="section-title">Built for focus, not friction.</h2>
+      <p class="section-lede">
+        Every detail is tuned for long coding sessions: quiet colours, instant
+        streaming and tools that stay out of the way until you need them.
+      </p>
+    </div>
+
+    <div class="feature-grid">
+      {% for feature in features[:6] %}
+        <article class="feature-card">
+          <div class="feature-icon">
+            <svg class="icon" aria-hidden="true"><use href="#i-{{ feature.icon }}"/></svg>
+          </div>
+          <h3>{{ feature.title }}</h3>
+          <p>{{ feature.body }}</p>
+        </article>
+      {% endfor %}
+    </div>
+
+    <div class="section-cta">
+      <a class="btn btn-ghost" href="{{ url_for('features') }}">
+        See everything Pike can do
+        <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== WORKFLOW ============================== -->
+<section class="section section-alt">
+  <div class="container">
+    <div class="section-head">
+      <p class="section-eyebrow">From zero to chat</p>
+      <h2 class="section-title">Three steps. About a minute.</h2>
+    </div>
+
+    <ol class="steps">
+      <li class="step">
+        <span class="step-num">1</span>
+        <h3>Install Pike</h3>
+        <p>Grab the one-file build for your OS, or run it from source with Python.</p>
+      </li>
+      <li class="step">
+        <span class="step-num">2</span>
+        <h3>Connect a provider</h3>
+        <p>Paste an API key in Settings. Pick a base URL from the catalogue or add your own.</p>
+      </li>
+      <li class="step">
+        <span class="step-num">3</span>
+        <h3>Open a workspace</h3>
+        <p>Point Pike at a folder so it can read, write and run commands with you.</p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============================== PRIVACY ============================== -->
+<section class="section">
+  <div class="container privacy-band">
+    <div class="privacy-icon">
+      <svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg>
+    </div>
+    <div class="privacy-copy">
+      <h2>Your data stays yours.</h2>
+      <p>
+        Conversations are stored in a local SQLite database and keys live in your
+        user settings folder - never in the project, never on a server. Requests go
+        straight from your machine to the provider you chose.
+      </p>
+      <div class="chip-row">
+        <span class="chip">Local SQLite history</span>
+        <span class="chip">Keys on your disk</span>
+        <span class="chip">Direct to provider</span>
+        <span class="chip">No telemetry</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== CTA ============================== -->
+<section class="section">
+  <div class="container">
+    <div class="cta-panel">
+      <div class="cta-glow" aria-hidden="true"></div>
+      <h2>Ready when you are.</h2>
+      <p>Download Pike, bring a key, and start thinking out loud.</p>
+      <div class="hero-actions center">
+        <a class="btn btn-primary btn-lg" href="{{ url_for('download') }}">
+          Download Pike {{ product.version }}
+          <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+        </a>
+        <a class="btn btn-ghost btn-lg" href="{{ url_for('features') }}">Explore features</a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
