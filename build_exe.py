@@ -5,7 +5,9 @@ Usage
     pip install pyinstaller
     python build_exe.py
 
-The result appears in ``dist/Pike`` (``Pike.exe`` on Windows).
+The result appears in ``dist/``: ``Pike.exe`` on Windows, ``Pike.app`` on
+macOS and ``Pike`` on Linux. Windows/Linux builds are single-file; macOS is
+built as an onedir ``.app`` bundle (as required for a proper application).
 
 This module can also be imported (``from build_exe import build``) by
 ``build_installer.py`` so the installer build reuses the exact same recipe.
@@ -232,7 +234,10 @@ def build(version: str = APP_VERSION, onefile: bool = True, quiet: bool = False)
 def main() -> int:
     if shutil.which("pyinstaller") is None and not (ROOT / ".venv").exists():
         print("Tip: activate a virtual environment before building to keep the exe small.")
-    output = build()
+    # macOS .app bundles must be built in onedir mode: onefile + windowed is
+    # deprecated by PyInstaller and conflicts with macOS code signing.
+    onefile = sys.platform != "darwin"
+    output = build(onefile=onefile)
     if output is None:
         return 1
     print(f"\nDone! Your executable is at: {output}")
