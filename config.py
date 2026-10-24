@@ -29,7 +29,7 @@ except Exception:  # pragma: no cover - dotenv is optional
     pass
 
 APP_NAME = "Pike"
-APP_VERSION = "1.0.1"
+APP_VERSION = "1.0.2"
 
 ROOT = Path(__file__).resolve().parent
 

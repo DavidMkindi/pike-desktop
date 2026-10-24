@@ -4397,11 +4397,6 @@ async function init() {
   if (!state.configured) {
     setTimeout(() => toast('Add your API key to start chatting.', 'info', 5000), 700);
   }
-
-  // Quietly check GitHub for a newer build once the app has settled.
-  setTimeout(() => {
-    checkForUpdate({ silent: true }).catch(() => {});
-  }, 3000);
 }
 
 /** Wait until the native window bar has been built (no-op in browser mode). */

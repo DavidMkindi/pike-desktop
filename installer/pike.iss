@@ -20,7 +20,7 @@
 
 ; --- Defaults (overridable with /DAppVersion=... on the iscc command line) --
 #ifndef AppVersion
-  #define AppVersion "1.0.1"
+  #define AppVersion "1.0.2"
 #endif
 #ifndef AppPublisher
   #define AppPublisher "Pike"
