@@ -21,9 +21,10 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from flask import Flask, abort, jsonify, render_template, url_for
+from flask import Flask, abort, jsonify, redirect, render_template, url_for
 
 import account_routes
+import releases
 
 # --------------------------------------------------------------------------- #
 #  App setup                                                                   #
@@ -49,8 +50,8 @@ PRODUCT = {
     "version": "1.0.0",
     "python": "3.9+",
     "license": "Free to use and modify",
-    "github": "https://github.com/pike-ai/pike",
-    "releases": "https://github.com/pike-ai/pike/releases",
+    "github": f"https://github.com/{releases.REPO}",
+    "releases": f"https://github.com/{releases.REPO}/releases",
     "year": datetime.now(timezone.utc).year,
 }
 
@@ -221,36 +222,79 @@ def features():
 
 @app.get("/download")
 def download():
+    """Download page - always points at the newest published release."""
+    release = releases.latest()
+    slots = release.get("slots") or {}
+
+    def option(slug: str, label: str, meta: str) -> dict:
+        info = slots.get(slug) or {}
+        return {
+            "slug": slug,
+            "label": label,
+            "meta": meta,
+            "size": info.get("size_human") or "",
+            "filename": info.get("name") or "",
+            "available": bool(info.get("url")),
+        }
+
     platforms = [
         {
             "name": "Windows",
             "icon": "windows",
-            "file": "Pike.exe",
             "detail": "Windows 10 (1809+) and Windows 11, 64-bit",
             "primary": True,
+            "downloads": [option("windows", "Download for Windows", ".exe installer")],
         },
         {
             "name": "macOS",
             "icon": "apple",
-            "file": "Pike",
-            "detail": "macOS 12+ (Intel and Apple silicon)",
+            "detail": "macOS 12+ - pick your chip",
             "primary": False,
+            "downloads": [
+                option("macos-arm64", "Apple silicon", ".dmg for M-series"),
+                option("macos-x86_64", "Intel", ".dmg for Intel"),
+            ],
         },
         {
             "name": "Linux",
             "icon": "linux",
-            "file": "Pike",
             "detail": "glibc 2.31+ (Ubuntu 20.04+, Fedora 33+)",
             "primary": False,
+            "downloads": [
+                option("linux-appimage", "AppImage", "portable, no install"),
+                option("linux-deb", "Debian / Ubuntu", ".deb package"),
+            ],
         },
     ]
     return render_template(
         "download.html",
         page="download",
         title="Download - Pike",
-        description="Download Pike for Windows, macOS or Linux, or run it from source.",
+        description="Download the latest Pike for Windows, macOS or Linux, or run it from source.",
         platforms=platforms,
+        release=release,
+        releases_url=f"https://github.com/{releases.REPO}/releases",
     )
+
+
+@app.get("/download/latest/<slug>")
+def download_latest(slug: str):
+    """Redirect straight to the newest installer for *slug*.
+
+    The browser starts downloading the file from GitHub; visitors never land on
+    a GitHub HTML page. Unknown slugs (or a lookup failure) fall back to the
+    release page.
+    """
+    target = releases.download_url(slug)
+    if not target:
+        return redirect(PRODUCT["releases"], code=302)
+    return redirect(target, code=302)
+
+
+@app.get("/api/latest-release")
+def api_latest_release():
+    """JSON describing the newest release and its per-platform assets."""
+    return jsonify(releases.latest())
 
 
 @app.get("/docs")

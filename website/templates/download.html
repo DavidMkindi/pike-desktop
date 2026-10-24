@@ -6,9 +6,11 @@
 <section class="page-hero">
   <div class="container">
     <p class="section-eyebrow">Download</p>
-    <h1 class="page-title">Get Pike {{ product.version }}</h1>
+    <h1 class="page-title">Get Pike{% if release.version %} {{ release.version }}{% endif %}</h1>
     <p class="section-lede">
-      A single self-contained build for each platform, or run it from source in a
+      The latest build for your platform, pulled straight from the
+      <a href="{{ release.html_url }}" rel="noopener">GitHub release</a>.
+      A single self-contained build per platform, or run it from source in a
       minute. Pike is free to use and modify.
     </p>
   </div>
@@ -25,18 +27,39 @@
           </div>
           <h3>{{ platform.name }}</h3>
           <p class="download-detail">{{ platform.detail }}</p>
-          <a class="btn {{ 'btn-primary' if platform.primary else 'btn-ghost' }} btn-block"
-             href="{{ product.releases }}" rel="noopener">
-            Download {{ platform.file }}
-            <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"/></svg>
-          </a>
+
+          {% if platform.downloads | length == 1 %}
+            {% set d = platform.downloads[0] %}
+            <a class="btn {{ 'btn-primary' if platform.primary else 'btn-ghost' }} btn-block"
+               href="{{ url_for('download_latest', slug=d.slug) }}">
+              {{ d.label }}
+              <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+            </a>
+            <p class="download-file">
+              {{ d.filename or d.meta }}{% if d.size %} &middot; {{ d.size }}{% endif %}
+            </p>
+          {% else %}
+            <div class="download-choices">
+              {% for d in platform.downloads %}
+                <a class="btn btn-ghost btn-block" href="{{ url_for('download_latest', slug=d.slug) }}">
+                  <span>{{ d.label }}</span>
+                  <span class="download-choice-meta">
+                    {{ d.meta }}{% if d.size %} &middot; {{ d.size }}{% endif %}
+                  </span>
+                </a>
+              {% endfor %}
+            </div>
+          {% endif %}
         </article>
       {% endfor %}
     </div>
 
     <p class="download-note">
-      Releases are published on the project's release page. Builds are unsigned;
-      your OS may ask you to confirm before the first launch.
+      Buttons always resolve to the newest published release and start the
+      download straight away - no GitHub page and no account needed.
+      {% if release.version %}Latest: v{{ release.version }}.{% endif %}
+      Builds are unsigned; your OS may ask you to confirm before the first launch
+      (on macOS, right-click the app and choose Open the first time).
     </p>
   </div>
 </section>
@@ -61,7 +84,7 @@
       </div>
       <pre id="src-cmd"><code># clone and enter the project
 git clone {{ product.github }}.git
-cd pike
+cd pike-desktop
 
 # create an isolated environment (optional but recommended)
 python -m venv .venv

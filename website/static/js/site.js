@@ -159,5 +159,5 @@
   /* ------------------------------------------------------ Console greeting */
   var style = "background:linear-gradient(90deg,#7aa2f7,#8b5cf6);color:#fff;padding:4px 10px;border-radius:6px;font-weight:700;";
   // eslint-disable-next-line no-console
-  console.log("%cPike", style, "— thanks for poking around. Source: https://github.com/pike-ai/pike");
+  console.log("%cPike", style, "— thanks for poking around. Source: https://github.com/DavidMkindi/pike-desktop");
 })();
