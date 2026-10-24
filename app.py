@@ -1288,6 +1288,11 @@ def handle_500(exc: Any) -> tuple[Response, int]:
 # --------------------------------------------------------------------------- #
 def run_desktop(host: str, port: int) -> None:
     """Serve Flask in a thread and open a native desktop window with pywebview."""
+    # Frozen Linux builds bundle the Qt WebEngine stack, so pin pywebview to
+    # the Qt backend instead of letting it probe for a system GTK/WebKit.
+    if sys.platform.startswith("linux") and getattr(sys, "frozen", False):
+        os.environ.setdefault("PYWEBVIEW_GUI", "qt")
+
     import webview
 
     # Identify the process as Pike so Windows uses our icon in the taskbar

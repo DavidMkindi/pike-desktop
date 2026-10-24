@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import platform
 import re
 import shutil
 import subprocess
@@ -150,26 +151,73 @@ class UpdaterError(RuntimeError):
     """Raised for any recoverable updater failure."""
 
 
-def _pick_asset(assets: list[dict[str, Any]]) -> dict[str, Any] | None:
-    """Choose the best asset to install.
+def _platform_key() -> str:
+    """Return the current platform as used in release asset names."""
+    if sys.platform.startswith("win"):
+        return "windows"
+    if sys.platform == "darwin":
+        return "macos"
+    return "linux"
 
-    Preference: the Inno Setup installer (it replaces the app cleanly), then
-    any ``Pike*.exe``, then any ``.exe``.
-    """
-    def score(asset: dict[str, Any]) -> tuple[int, str]:
-        name = str(asset.get("name") or "").lower()
+
+def _arch_key() -> str:
+    """Normalise the machine architecture (``arm64`` / ``x86_64`` / ...)."""
+    machine = platform.machine().lower()
+    if machine in ("arm64", "aarch64"):
+        return "arm64"
+    if machine in ("x86_64", "amd64"):
+        return "x86_64"
+    return machine or "unknown"
+
+
+def _asset_score(name: str, platform_key: str, arch: str) -> tuple[int, int, str]:
+    """Rank an asset so the best match for the current platform sorts first."""
+    if platform_key == "windows":
         if "setup" in name:
-            return (0, name)
+            return (0, 0, name)
         if name.endswith(".exe") and "pike" in name:
-            return (1, name)
+            return (1, 0, name)
         if name.endswith(".exe"):
-            return (2, name)
-        return (9, name)
+            return (2, 0, name)
+        return (9, 9, name)
+
+    if platform_key == "macos":
+        if any(tag in name for tag in ("macos", "darwin", "osx", "mac-")):
+            arch_match = 0 if (
+                arch in name
+                or (arch == "arm64" and ("apple" in name or "aarch64" in name))
+                or (arch == "x86_64" and "intel" in name)
+            ) else 1
+            return (0, arch_match, name)
+        if name.endswith((".dmg", ".pkg", ".zip")):
+            return (5, 0, name)
+        return (9, 9, name)
+
+    # Linux
+    if "linux" in name:
+        return (0, 0, name)
+    if name.endswith((".appimage", ".deb", ".tar.gz")):
+        return (1, 0, name)
+    return (9, 9, name)
+
+
+def _pick_asset(assets: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Choose the best asset for the *current* platform.
+
+    Windows prefers the Inno Setup installer (it replaces the app cleanly),
+    macOS prefers a build tagged for this CPU architecture, and Linux prefers
+    an archive tagged ``linux``. Unknown formats sort last.
+    """
+    platform_key = _platform_key()
+    arch = _arch_key()
 
     candidates = [a for a in assets if isinstance(a, dict) and a.get("name")]
     if not candidates:
         return None
-    return sorted(candidates, key=score)[0]
+    return sorted(
+        candidates,
+        key=lambda a: _asset_score(str(a.get("name") or "").lower(), platform_key, arch),
+    )[0]
 
 
 def _asset_payload(asset: dict[str, Any]) -> dict[str, Any]:

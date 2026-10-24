@@ -12,6 +12,7 @@ This module can also be imported (``from build_exe import build``) by
 """
 from __future__ import annotations
 
+import importlib.util
 import shutil
 import subprocess
 import sys
@@ -91,6 +92,62 @@ def _require_build_deps() -> bool:
     return not missing
 
 
+def _module_available(name: str) -> bool:
+    """Return True when *name* can be imported in the current interpreter."""
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ValueError, ModuleNotFoundError):
+        return False
+
+
+def _generate_icns() -> Path | None:
+    """Best-effort conversion of ``static/pike.ico`` to a macOS ``.icns``.
+
+    Pillow is only needed for this conversion, so a missing Pillow simply
+    means the unsigned app ships without a custom icon.
+    """
+    source = ROOT / "static" / "pike.ico"
+    if not source.is_file():
+        return None
+    try:
+        from PIL import Image  # type: ignore
+    except ImportError:
+        return None
+    target = ROOT / "pike.icns"
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with Image.open(source) as image:
+            image.save(target, format="ICNS")
+    except Exception:  # noqa: BLE001 - icon conversion is strictly optional
+        return None
+    return target if target.is_file() else None
+
+
+def _icon_for_platform() -> Path | None:
+    """Return the best icon file for the current platform, if any."""
+    if sys.platform.startswith("win"):
+        candidate = ROOT / "static" / "pike.ico"
+        return candidate if candidate.is_file() else None
+    if sys.platform == "darwin":
+        bundled = ROOT / "static" / "pike.icns"
+        if bundled.is_file():
+            return bundled
+        return _generate_icns()
+    return None  # PyInstaller ignores --icon on Linux.
+
+
+def _linux_qt_flags() -> list[str]:
+    """Bundle the Qt WebEngine stack so Linux builds need no system WebKit."""
+    flags: list[str] = []
+    for package in ("qtpy", "PyQt6", "PyQt5", "PySide6"):
+        if _module_available(package):
+            flags += ["--collect-all", package]
+    for module in ("PyQt6.QtWebEngineWidgets", "PyQt5.QtWebEngineWidgets"):
+        if _module_available(module):
+            flags += ["--hidden-import", module]
+    return flags
+
+
 def _build_command(version: str, onefile: bool = True) -> list[str]:
     separator = ";" if sys.platform.startswith("win") else ":"
     add_data = [
@@ -110,29 +167,42 @@ def _build_command(version: str, onefile: bool = True) -> list[str]:
         "webview",
         "--collect-all",
         "flask",
-        "--hidden-import",
-        "clr_loader",
     ]
     if onefile:
         command.append("--onefile")
+
     if sys.platform.startswith("win"):
-        command.append("--windowed")
+        command += ["--windowed", "--hidden-import", "clr_loader"]
         # Bake company/version metadata into the executable.
         command += ["--version-file", str(write_version_file(version))]
+    elif sys.platform == "darwin":
+        # A .app bundle is required for a proper macOS application window.
+        command.append("--windowed")
+        for framework in ("objc", "Cocoa", "WebKit", "Quartz", "Foundation", "AppKit"):
+            if _module_available(framework):
+                command += ["--hidden-import", framework]
+    else:
+        command += _linux_qt_flags()
 
     for item in add_data:
         command += ["--add-data", item]
 
-    icon_path = ROOT / "static" / "pike.ico"
-    if icon_path.is_file():
+    icon_path = _icon_for_platform()
+    if icon_path is not None:
         command += ["--icon", str(icon_path)]
-
-    if not onefile:
-        # Only bundle runtime assets for onedir; skip the entry script check.
-        pass
 
     command.append(str(ROOT / "app.py"))
     return command
+
+
+def _output_path() -> Path:
+    """Return the expected PyInstaller output for the current platform."""
+    if sys.platform == "darwin":
+        bundle = ROOT / "dist" / f"{APP_NAME}.app"
+        if bundle.is_dir():
+            return bundle
+    suffix = ".exe" if sys.platform.startswith("win") else ""
+    return ROOT / "dist" / f"{APP_NAME}{suffix}"
 
 
 def build(version: str = APP_VERSION, onefile: bool = True, quiet: bool = False) -> Path | None:
@@ -147,10 +217,13 @@ def build(version: str = APP_VERSION, onefile: bool = True, quiet: bool = False)
     if result.returncode != 0:
         return None
 
-    output = ROOT / "dist" / (f"{APP_NAME}.exe" if sys.platform.startswith("win") else APP_NAME)
-    if output.is_file():
-        size_mb = output.stat().st_size / (1024 * 1024)
-        print(f"\nBuilt {output}  ({size_mb:.1f} MB)")
+    output = _output_path()
+    if output.exists():
+        if output.is_dir():
+            print(f"\nBuilt {output}  (application bundle)")
+        else:
+            size_mb = output.stat().st_size / (1024 * 1024)
+            print(f"\nBuilt {output}  ({size_mb:.1f} MB)")
         return output
     print(f"\nBuild finished but {output} was not found.")
     return None

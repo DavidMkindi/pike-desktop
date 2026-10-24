@@ -1,0 +1,99 @@
+name: Build macOS app
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Also publish a GitHub Release with the macOS builds"
+        type: boolean
+        default: false
+
+# Allow the workflow to create/update releases.
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    name: Build Pike (macOS ${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install application + build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install "pillow>=10.0.0" "pyinstaller>=6.0.0"
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="$(python -c "import re,pathlib; print(re.search(r'APP_VERSION\s*=\s*\"([^\"]+)\"', pathlib.Path('config.py').read_text()).group(1))")"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: $VERSION"
+
+      - name: Build the macOS application bundle
+        run: python build_exe.py
+
+      - name: Sign and package the app
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          APP="dist/Pike.app"
+          if [ ! -d "$APP" ]; then
+            echo "::error::PyInstaller did not produce $APP"
+            ls -R dist || true
+            exit 1
+          fi
+          # Ad-hoc signature so the bundle is valid for local execution.
+          codesign --force --deep --sign - "$APP" || true
+          STAGE="Pike-macOS-${{ matrix.arch }}"
+          mkdir -p "$STAGE"
+          cp -R "$APP" "$STAGE/Pike.app"
+          cp packaging/macos/README.txt "$STAGE/README.txt"
+          ditto -c -k --sequesterRsrc --keepParent "$STAGE" \
+            "Pike-${VERSION}-macOS-${{ matrix.arch }}.zip"
+          ls -lh "Pike-${VERSION}-macOS-${{ matrix.arch }}.zip"
+
+      - name: Upload macOS build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pike-macOS-${{ matrix.arch }}
+          path: Pike-*-macOS-${{ matrix.arch }}.zip
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Pike v${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          files: Pike-*-macOS-${{ matrix.arch }}.zip
+          fail_on_unmatched_files: true

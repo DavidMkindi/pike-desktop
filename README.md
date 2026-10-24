@@ -172,7 +172,8 @@ python build_exe.py
 The result lands in `dist/`:
 
 - Windows → `dist/Pike.exe`
-- macOS / Linux → `dist/Pike`
+- macOS → `dist/Pike.app`
+- Linux → `dist/Pike`
 
 The executable is self-contained (templates + static assets are bundled). Settings and history are written to the per-user data folder so the app works even from a read-only location.
 
@@ -193,13 +194,26 @@ with `repo` scope. It looks in this order:
 3. A token pasted in **Settings → About → GitHub token**.
 4. The `gh` CLI, when it is installed and signed in.
 
-Publishing a release is automatic: push a version tag and the
-`Build Windows app + installer` workflow attaches `Pike.exe` and
-`Pike-<version>-Setup.exe` to the release.
+Publishing a release is automatic: push a version tag and each platform
+workflow attaches its build to the same GitHub Release.
+
+| Workflow | Runner | Release asset |
+| --- | --- | --- |
+| `Build Windows app + installer` | `windows-latest` | `Pike-<version>-Setup.exe` |
+| `Build macOS app` | `macos-latest`, `macos-15-intel` | `Pike-<version>-macOS-{arm64,x86_64}.zip` |
+| `Build Linux app` | `ubuntu-22.04` | `Pike-<version>-Linux-x86_64.tar.gz` |
 
 ```bash
 git tag v1.2.0 && git push origin v1.2.0
 ```
+
+Any workflow can also be run manually from **Actions ▸ Run workflow** with the
+*release* input enabled to attach its build to the release for the version in
+`config.py`.
+
+On Linux the self-updater automatically selects the `Linux` archive and on
+macOS the archive matching the current CPU; both stage the download and tell
+you where to find it (automatic in-place install remains Windows-only).
 
 Downloaded builds are staged in `%APPDATA%\Pike\updates\` and verified
 against the asset's SHA-256 digest before installation.

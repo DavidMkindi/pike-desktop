@@ -14,6 +14,7 @@ build/
 dist/
 *.spec
 version_info.txt
+pike.icns
 *.log
 
 # Installer output

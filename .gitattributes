@@ -1,0 +1,12 @@
+# Normalise line endings across platforms.
+* text=auto
+
+# Shell scripts and CI definitions must stay LF so they run on Linux/macOS.
+*.sh   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+
+# Windows-only files keep CRLF.
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+*.iss  text eol=crlf
