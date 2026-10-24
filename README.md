@@ -119,8 +119,10 @@ Copy `.env.example` to `.env` and edit it, or set these environment variables di
 | `PIKE_BROWSER_ONLY` | `false` | Always use the browser instead of the desktop window. |
 | `PIKE_TIMEOUT` | `120` | Provider request timeout in seconds. |
 | `PIKE_SYSTEM_PROMPT` | friendly assistant | Base system prompt. |
-| `PIKE_UPDATE_URL` | *(empty)* | Optional JSON manifest URL for the **Update** button. |
-| `PIKE_RELEASES_URL` | *(empty)* | Fallback link opened when no update manifest is set. |
+| `PIKE_UPDATE_REPO` | `DavidMkindi/pike-desktop` | GitHub `owner/repo` the **Update** button pulls releases from. |
+| `PIKE_GITHUB_TOKEN` | *(empty)* | Token with `repo` scope for reading releases from a **private** repo. |
+| `PIKE_UPDATE_URL` | *(empty)* | Optional legacy JSON manifest URL for the **Update** button. |
+| `PIKE_RELEASES_URL` | *(empty)* | Fallback link opened when there is no download available. |
 | `PIKE_DATA_DIR` | per-user | Where `settings.json` and `history.sqlite3` live. |
 
 ### Built-in models
@@ -176,6 +178,34 @@ The executable is self-contained (templates + static assets are bundled). Settin
 
 ---
 
+## Updates
+
+The title-bar **Update** button (and Settings → About → *Check for updates*)
+checks GitHub Releases for the configured repository and, when a newer build
+exists, downloads it and runs the bundled Inno Setup installer silently. The
+installer closes Pike, replaces it and relaunches it.
+
+Because `DavidMkindi/pike-desktop` is **private**, the updater needs a token
+with `repo` scope. It looks in this order:
+
+1. `PIKE_GITHUB_TOKEN` (environment or `.env`).
+2. `GITHUB_TOKEN` / `GH_TOKEN`.
+3. A token pasted in **Settings → About → GitHub token**.
+4. The `gh` CLI, when it is installed and signed in.
+
+Publishing a release is automatic: push a version tag and the
+`Build Windows app + installer` workflow attaches `Pike.exe` and
+`Pike-<version>-Setup.exe` to the release.
+
+```bash
+git tag v1.2.0 && git push origin v1.2.0
+```
+
+Downloaded builds are staged in `%APPDATA%\Pike\updates\` and verified
+against the asset's SHA-256 digest before installation.
+
+---
+
 ## API reference
 
 The Flask backend exposes a small JSON + SSE API (handy if you want to embed the UI elsewhere).
@@ -185,8 +215,12 @@ The Flask backend exposes a small JSON + SSE API (handy if you want to embed the
 | `GET` | `/` | The single-page frontend |
 | `GET` | `/healthz` | Liveness probe |
 | `GET` | `/api/status` | Connection status, models, active model |
-| `GET` | `/api/update` | Check for a newer release via `PIKE_UPDATE_URL` |
-| `GET` / `POST` | `/api/settings` | Read / update API key, base URL, default model |
+| `GET` | `/api/update` | Check GitHub Releases for a newer build |
+| `POST` | `/api/update/download` | Download the newest release in the background |
+| `GET` | `/api/update/progress` | Poll the background download |
+| `POST` | `/api/update/cancel` | Cancel an in-flight download |
+| `POST` | `/api/update/apply` | Install the downloaded build and restart |
+| `GET` / `POST` | `/api/settings` | Read / update API key, base URL, default model, GitHub token |
 | `POST` | `/api/settings/test` | Send a tiny test prompt to the provider |
 | `POST` | `/api/chat` | Non-streaming completion |
 | `POST` | `/api/chat/stream` | **Streaming** completion (SSE: `start`, `delta`, `done`, `error`) |

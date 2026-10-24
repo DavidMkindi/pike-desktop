@@ -53,6 +53,22 @@ const writeLocal = (key, value) => {
   }
 };
 
+// Open a URL in the system browser. Inside the native pywebview shell we go
+// through the exposed Python bridge; in a plain browser we fall back to a tab.
+function openExternal(url) {
+  if (!url || url === '#') return;
+  const api = window.pywebview && window.pywebview.api;
+  if (api && typeof api.open_external === 'function') {
+    try {
+      api.open_external(url);
+      return;
+    } catch {
+      /* fall through to window.open */
+    }
+  }
+  window.open(url, '_blank', 'noopener');
+}
+
 /* -------------------------------------------------------------------------- */
 /*  API layer                                                                 */
 /* -------------------------------------------------------------------------- */
@@ -76,6 +92,8 @@ const API = {
   testConnection: (body) => API.request('/api/settings/test', { method: 'POST', body }),
   getProviders: () => API.request('/api/providers'),
   refreshModels: (body) => API.request('/api/providers/models', { method: 'POST', body }),
+  addCustomModel: (body) => API.request('/api/models/custom', { method: 'POST', body }),
+  deleteCustomModel: (body) => API.request('/api/models/custom/delete', { method: 'POST', body }),
   listConversations: (query = '') =>
     API.request(`/api/conversations${query ? `?q=${encodeURIComponent(query)}` : ''}`),
   getConversation: (id) => API.request(`/api/conversations/${id}`),
@@ -85,6 +103,17 @@ const API = {
   deleteConversation: (id) => API.request(`/api/conversations/${id}`, { method: 'DELETE' }),
   clearConversations: () => API.request('/api/conversations', { method: 'DELETE' }),
   checkForUpdate: () => API.request('/api/update'),
+  downloadUpdate: (body = {}) => API.request('/api/update/download', { method: 'POST', body }),
+  updateProgress: () => API.request('/api/update/progress'),
+  cancelUpdate: () => API.request('/api/update/cancel', { method: 'POST', body: {} }),
+  applyUpdate: () => API.request('/api/update/apply', { method: 'POST', body: {} }),
+  // Account
+  accountStatus: () => API.request('/api/account'),
+  accountLoginStart: (body) => API.request('/api/account/login/start', { method: 'POST', body }),
+  accountLoginPoll: (body) => API.request('/api/account/login/poll', { method: 'POST', body }),
+  accountOpen: (target) => API.request('/api/account/open', { method: 'POST', body: { target } }),
+  accountLogout: () => API.request('/api/account/logout', { method: 'POST', body: {} }),
+  accountSync: () => API.request('/api/account/sync', { method: 'POST', body: {} }),
   // Workspace
   getWorkspace: () => API.request('/api/workspace'),
   setWorkspace: (path) => API.request('/api/workspace', { method: 'POST', body: { path } }),
@@ -122,6 +151,7 @@ const state = {
   models: [],
   providers: [],
   activeProvider: 'openai',
+  baseUrl: '',
   catalogUpdated: '',
   defaultModel: 'gpt-4o-mini',
   reasoningLevels: [],
@@ -129,13 +159,16 @@ const state = {
   configured: false,
   appName: 'Pike',
   appVersion: '',
+  updateRepo: '',
+  hasGithubToken: false,
+  updateInfo: null,
+  updatePhase: 'idle',
   streaming: false,
   controller: null,
   history: [],
   searchQuery: '',
   projects: [],
   activeProjectId: null,
-  connectedEditors: readLocal('pike.editors', []),
   theme: readLocal('pike.theme', 'dark'),
   attachments: [],      // staged files/images waiting to be sent
   view: readLocal('pike.view', 'chat'),
@@ -148,7 +181,6 @@ const state = {
 };
 
 const PROJECTS_KEY = 'pike.projects';
-const EDITORS_KEY = 'pike.editors';
 const THEME_KEY = 'pike.theme';
 const COMPACT_KEY = 'pike.compact';
 const VIEW_KEY = 'pike.view';
@@ -208,9 +240,6 @@ const dom = {
   composeReasoningTriggerLabel: $('#composeReasoningTriggerLabel'),
   composeReasoningMenu: $('#composeReasoningMenu'),
   composeReasoningMenuList: $('#composeReasoningMenuList'),
-  statusDot: $('#statusDot'),
-  connectionStatus: $('#connectionStatus'),
-  connectCard: $('#connectCard'),
   chatHistory: $('#chatHistory'),
   projectList: $('#projectList'),
   newProject: $('#newProject'),
@@ -222,7 +251,26 @@ const dom = {
   toastContainer: $('#toastContainer'),
   settingsModal: $('#settingsModal'),
   providerSelect: $('#providerSelect'),
+  providerSelectWrap: $('#providerSelectWrap'),
+  providerTrigger: $('#providerTrigger'),
+  providerTriggerLabel: $('#providerTriggerLabel'),
+  providerMenu: $('#providerMenu'),
+  providerMenuList: $('#providerMenuList'),
+  providerSearchInput: $('#providerSearchInput'),
   providerDocs: $('#providerDocs'),
+  customModelForm: $('#customModelForm'),
+  customModelNote: $('#customModelNote'),
+  customModelTitle: $('#customModelTitle'),
+  customModelToggle: $('#customModelToggle'),
+  customModelId: $('#customModelId'),
+  customModelLabel: $('#customModelLabel'),
+  customModelBaseUrl: $('#customModelBaseUrl'),
+  customModelApiKey: $('#customModelApiKey'),
+  customModelKeyToggle: $('#customModelKeyToggle'),
+  customModelContext: $('#customModelContext'),
+  customModelReasoning: $('#customModelReasoning'),
+  customModelCancel: $('#customModelCancel'),
+  addCustomModel: $('#addCustomModel'),
   refreshModels: $('#refreshModels'),
   refreshModelsList: $('#refreshModelsList'),
   modelsUpdatedNote: $('#modelsUpdatedNote'),
@@ -251,16 +299,57 @@ const dom = {
   aboutVersion: $('#aboutVersion'),
   aboutModel: $('#aboutModel'),
   aboutStatus: $('#aboutStatus'),
+  // Account
+  accountSignedOut: $('#accountSignedOut'),
+  accountSignInBox: $('#accountSignInBox'),
+  accountSignedIn: $('#accountSignedIn'),
+  accountSignIn: $('#accountSignIn'),
+  accountSignInCode: $('#accountSignInCode'),
+  accountCode: $('#accountCode'),
+  accountOpenSite: $('#accountOpenSite'),
+  accountCopyCode: $('#accountCopyCode'),
+  accountSignInHint: $('#accountSignInHint'),
+  accountRegister: $('#accountRegister'),
+  accountCancel: $('#accountCancel'),
+  accountAvatar: $('#accountAvatar'),
+  accountName: $('#accountName'),
+  accountEmail: $('#accountEmail'),
+  accountDevice: $('#accountDevice'),
+  accountSyncStatus: $('#accountSyncStatus'),
+  accountDashboard: $('#accountDashboard'),
+  accountSync: $('#accountSync'),
+  accountSignOut: $('#accountSignOut'),
   projectModal: $('#projectModal'),
   projectModalList: $('#projectModalList'),
   projectNameInput: $('#projectNameInput'),
   createProjectBtn: $('#createProjectBtn'),
   projectModalClose: $('#projectModalClose'),
-  connectModal: $('#connectModal'),
-  connectModalClose: $('#connectModalClose'),
-  editorList: $('#editorList'),
   windowUpdate: $('#windowUpdate'),
   windowTitle: $('#windowTitle'),
+  // Updates
+  updateModal: $('#updateModal'),
+  updateModalClose: $('#updateModalClose'),
+  updateModalSub: $('#updateModalSub'),
+  updateVersionRow: $('#updateVersionRow'),
+  updateCurrent: $('#updateCurrent'),
+  updateLatest: $('#updateLatest'),
+  updateNotes: $('#updateNotes'),
+  updateNotesBody: $('#updateNotesBody'),
+  updateProgressBox: $('#updateProgressBox'),
+  updateProgressLabel: $('#updateProgressLabel'),
+  updateProgressPercent: $('#updateProgressPercent'),
+  updateProgressBar: $('#updateProgressBar'),
+  updateHintText: $('#updateHintText'),
+  updateTokenBtn: $('#updateTokenBtn'),
+  updateOpenRelease: $('#updateOpenRelease'),
+  updateClose: $('#updateClose'),
+  updateAction: $('#updateAction'),
+  aboutRepo: $('#aboutRepo'),
+  githubTokenInput: $('#githubTokenInput'),
+  githubTokenNote: $('#githubTokenNote'),
+  saveGithubToken: $('#saveGithubToken'),
+  clearGithubToken: $('#clearGithubToken'),
+  aboutCheckUpdate: $('#aboutCheckUpdate'),
   // Views
   viewTabs: $('#viewTabs'),
   chatView: $('#conversation'),
@@ -323,24 +412,43 @@ const dom = {
 /* -------------------------------------------------------------------------- */
 /*  Toasts                                                                    */
 /* -------------------------------------------------------------------------- */
+const toastTimers = new WeakMap();
+
+function dismissToast(element) {
+  if (!element || element.classList.contains('leaving')) return;
+  clearTimeout(toastTimers.get(element));
+  element.classList.add('leaving');
+  element.addEventListener('animationend', () => element.remove(), { once: true });
+  setTimeout(() => element.remove(), 400);
+}
+
 function toast(message, type = 'info', delay = 4200) {
+  const container = dom.toastContainer;
+  // Collapse duplicate notifications instead of stacking them, so a repeated
+  // event (e.g. a poll firing more than once) can't flood the screen.
+  const duplicate = [...container.querySelectorAll('.toast')].find(
+    (el) => el.dataset.type === type && el.dataset.message === message
+  );
+  if (duplicate) {
+    clearTimeout(toastTimers.get(duplicate));
+    if (delay > 0) toastTimers.set(duplicate, setTimeout(() => dismissToast(duplicate), delay));
+    return;
+  }
+
   const iconName = { success: 'check-circle', error: 'alert', info: 'info' }[type] || 'info';
   const element = document.createElement('div');
   element.className = `toast ${type}`;
+  element.dataset.type = type;
+  element.dataset.message = message;
   element.setAttribute('role', 'status');
   element.innerHTML = `
     ${icon(iconName)}
     <div class="toast-body">${escapeHtml(message)}</div>
     <button class="icon-btn toast-close" type="button" aria-label="Dismiss">${icon('x')}</button>`;
 
-  const dismiss = () => {
-    element.classList.add('leaving');
-    element.addEventListener('animationend', () => element.remove(), { once: true });
-    setTimeout(() => element.remove(), 400);
-  };
-  element.querySelector('.toast-close').addEventListener('click', dismiss);
-  dom.toastContainer.appendChild(element);
-  if (delay > 0) setTimeout(dismiss, delay);
+  element.querySelector('.toast-close').addEventListener('click', () => dismissToast(element));
+  container.appendChild(element);
+  if (delay > 0) toastTimers.set(element, setTimeout(() => dismissToast(element), delay));
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1450,72 +1558,6 @@ function renameProject(project) {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Connect modal                                                            */
-/* -------------------------------------------------------------------------- */
-const EDITORS = [
-  { id: 'vscode', name: 'Visual Studio Code', icon: 'vscode', className: 'vscode', desc: 'The most popular code editor.', install: 'code --install-extension pike.pike' },
-  { id: 'cursor', name: 'Cursor', icon: 'cursor', className: 'cursor', desc: 'AI-first code editor.', install: 'cursor --install-extension pike.pike' },
-  { id: 'jetbrains', name: 'JetBrains IDEs', icon: 'jetbrains', className: 'jetbrains', desc: 'IntelliJ, WebStorm, PyCharm and more.', install: 'Install the Pike plugin from the marketplace' },
-  { id: 'neovim', name: 'Neovim', icon: 'neovim', className: 'neovim', desc: 'Hyperextensible Vim-based editor.', install: ':PikeConnect' },
-  { id: 'sublime', name: 'Sublime Text', icon: 'sublime', className: 'sublime', desc: 'A sophisticated text editor.', install: 'Install Pike via Package Control' },
-];
-
-function openConnectModal() {
-  renderEditors();
-  openOverlay(dom.connectModal);
-}
-
-function closeConnectModal() {
-  closeOverlay(dom.connectModal);
-}
-
-function renderEditors() {
-  dom.editorList.innerHTML = '';
-  EDITORS.forEach((editor) => {
-    const connected = state.connectedEditors.includes(editor.id);
-    const card = document.createElement('div');
-    card.className = `editor-card${connected ? ' connected' : ''}`;
-    card.innerHTML = `
-      <span class="editor-logo ${editor.className}">${icon(editor.icon)}</span>
-      <div class="editor-body">
-        <div class="editor-name">${escapeHtml(editor.name)}</div>
-        <div class="editor-desc">${escapeHtml(editor.desc)}</div>
-        <div class="editor-install">${connected ? escapeHtml(editor.install) : ''}</div>
-      </div>
-      <div class="editor-action">
-        <button class="btn ${connected ? 'btn-ghost' : 'btn-primary'}" type="button">
-          ${connected ? icon('check') + '<span>Connected</span>' : '<span>Connect</span>'}
-        </button>
-      </div>`;
-    card.querySelector('button').addEventListener('click', () => toggleEditor(editor));
-    dom.editorList.appendChild(card);
-  });
-}
-
-function toggleEditor(editor) {
-  const connected = state.connectedEditors.includes(editor.id);
-  if (connected) {
-    state.connectedEditors = state.connectedEditors.filter((id) => id !== editor.id);
-    toast(`Disconnected from ${editor.name}.`, 'info', 2600);
-  } else {
-    state.connectedEditors = [...state.connectedEditors, editor.id];
-    toast(`Connected to ${editor.name}.`, 'success', 2600);
-  }
-  writeLocal(EDITORS_KEY, state.connectedEditors);
-  renderEditors();
-  updateConnectStatus();
-}
-
-function updateConnectStatus() {
-  const count = state.connectedEditors.length;
-  if (count > 0) {
-    dom.connectionStatus.textContent = `${count} editor${count === 1 ? '' : 's'} connected`;
-  } else {
-    dom.connectionStatus.textContent = 'Connect to editor';
-  }
-}
-
-/* -------------------------------------------------------------------------- */
 /*  Sidebar history                                                           */
 /* -------------------------------------------------------------------------- */
 async function loadHistory(query = state.searchQuery) {
@@ -1940,7 +1982,7 @@ function syncModelSelects(modelId) {
 function selectModel(modelId, { save = true } = {}) {
   if (!modelId) return;
   syncModelSelects(modelId);
-  renderSettingsModels();
+  if (settingsModelsVisible()) renderSettingsModels();
   renderReasoningSelect();
   if (save) {
     API.saveSettings({ model: modelId }).catch(() => {});
@@ -2102,20 +2144,219 @@ function toggleReasoningMenu(refs = MAIN_REASONING_REFS()) {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Account                                                                   */
+/* -------------------------------------------------------------------------- */
+function renderAccount(status) {
+  const signed = status && status.signed_in;
+  if (dom.accountSignedOut) dom.accountSignedOut.hidden = signed || !dom.accountSignInBox.hidden;
+  if (dom.accountSignedIn) dom.accountSignedIn.hidden = !signed;
+  if (dom.accountSignInBox && signed) dom.accountSignInBox.hidden = true;
+
+  if (signed && status.user) {
+    const label = status.user.name || status.user.email || 'Pike user';
+    if (dom.accountAvatar) dom.accountAvatar.textContent = label.charAt(0).toUpperCase();
+    if (dom.accountName) dom.accountName.textContent = status.user.name || 'Signed in';
+    if (dom.accountEmail) dom.accountEmail.textContent = status.user.email || '';
+    if (dom.accountDevice) dom.accountDevice.textContent = status.device_name || '—';
+  }
+}
+
+async function openAccountPage(target) {
+  try {
+    await API.accountOpen(target);
+  } catch (error) {
+    toast(error.message, 'error');
+  }
+}
+
+function refreshAccount() {
+  API.accountStatus()
+    .then((result) => renderAccount(result))
+    .catch(() => renderAccount({ signed_in: false }));
+}
+
+let accountPollTimer = null;
+let accountLoginDeviceCode = null;
+let accountPollToken = 0;   // generation guard: invalidates stale attempts
+let accountPollBusy = false;
+let accountSignInActive = false;   // only one sign-in flow may run at a time
+let accountSignInDone = false;     // success reported once per attempt
+
+function stopAccountPolling() {
+  accountPollToken += 1;    // any in-flight or queued poll becomes a no-op
+  accountPollBusy = false;
+  accountSignInActive = false;
+  if (accountPollTimer) {
+    clearTimeout(accountPollTimer);
+    accountPollTimer = null;
+  }
+  accountLoginDeviceCode = null;
+}
+
+async function startAccountSignIn(openBrowser) {
+  // Starting a second flow while one is already running is what produced
+  // duplicate "signed in" notifications and an endless poll loop.
+  if (accountSignInActive) return;
+  stopAccountPolling();
+  accountSignInActive = true;
+  accountSignInDone = false;
+  const token = accountPollToken;
+  try {
+    const result = await API.accountLoginStart({ device_name: '' });
+    // A newer attempt (or a cancel) happened while we were waiting.
+    if (token !== accountPollToken || !accountSignInActive) return;
+    accountLoginDeviceCode = result.device_code;
+    if (dom.accountCode) dom.accountCode.textContent = result.user_code || '----';
+    if (dom.accountSignInHint) {
+      dom.accountSignInHint.textContent = openBrowser
+        ? 'Approve this device in the browser window that just opened, or enter the code below:'
+        : 'Enter this code on the Pike website to link this device:';
+    }
+    if (dom.accountSignedOut) dom.accountSignedOut.hidden = true;
+    if (dom.accountSignInBox) dom.accountSignInBox.hidden = false;
+
+    // The backend opens the approval page, so its URL never touches the page.
+    if (openBrowser) openAccountPage('device');
+
+    scheduleAccountPoll(token);
+  } catch (error) {
+    if (token !== accountPollToken) return;
+    accountSignInActive = false;
+    toast(error.message, 'error');
+  }
+}
+
+function scheduleAccountPoll(token) {
+  if (token !== accountPollToken || !accountSignInActive) return;
+  accountPollTimer = setTimeout(() => pollAccountSignIn(token), 3000);
+}
+
+async function pollAccountSignIn(token) {
+  if (token !== accountPollToken || !accountLoginDeviceCode || accountPollBusy) return;
+  accountPollBusy = true;
+  try {
+    const poll = await API.accountLoginPoll({ device_code: accountLoginDeviceCode });
+    if (token !== accountPollToken) return;
+    if (poll.status === 'approved') {
+      // Terminal: notify once, tear the loop down and never poll again.
+      if (!accountSignInDone) {
+        accountSignInDone = true;
+        stopAccountPolling();
+        if (dom.accountSignInBox) dom.accountSignInBox.hidden = true;
+        toast('Signed in to Pike.', 'success');
+        refreshAccount();
+      }
+      return;
+    }
+    scheduleAccountPoll(token);
+  } catch (error) {
+    if (token !== accountPollToken) return;
+    stopAccountPolling();
+    if (dom.accountSignInBox) dom.accountSignInBox.hidden = true;
+    if (dom.accountSignedOut) dom.accountSignedOut.hidden = false;
+    toast(error.message, 'error');
+  } finally {
+    accountPollBusy = false;
+  }
+}
+
+async function copyAccountCode() {
+  const code = dom.accountCode ? dom.accountCode.textContent.trim() : '';
+  if (!code || code === '----') return;
+  try {
+    await navigator.clipboard.writeText(code);
+    toast('Device code copied.', 'success');
+  } catch {
+    toast('Could not access the clipboard.', 'error');
+  }
+}
+
+async function signOutAccount() {
+  try {
+    const result = await API.accountLogout();
+    renderAccount(result);
+    toast('Signed out.', 'info');
+  } catch (error) {
+    toast(error.message, 'error');
+  }
+}
+
+async function syncAccount() {
+  try {
+    if (dom.accountSyncStatus) dom.accountSyncStatus.textContent = 'Syncing…';
+    const result = await API.accountSync();
+    if (dom.accountSyncStatus) dom.accountSyncStatus.textContent = 'Synced';
+    toast('Settings synced with your account.', 'success');
+    if ((result.applied || []).includes('model')) await refreshStatus();
+  } catch (error) {
+    if (dom.accountSyncStatus) dom.accountSyncStatus.textContent = 'Sync failed';
+    toast(error.message, 'error');
+  }
+}
+
+function bindAccountEvents() {
+  if (bindAccountEvents.bound) return;
+  bindAccountEvents.bound = true;
+  if (dom.accountSignIn) dom.accountSignIn.addEventListener('click', () => startAccountSignIn(true));
+  if (dom.accountSignInCode) dom.accountSignInCode.addEventListener('click', () => startAccountSignIn(false));
+  if (dom.accountCopyCode) dom.accountCopyCode.addEventListener('click', copyAccountCode);
+  // Account links open through the backend so the server URL is never shown.
+  const pageButtons = [
+    [dom.accountRegister, 'register'],
+    [dom.accountDashboard, 'dashboard'],
+    [dom.accountOpenSite, 'device'],
+  ];
+  pageButtons.forEach(([el, target]) => {
+    if (!el) return;
+    el.addEventListener('click', (event) => {
+      event.preventDefault();
+      openAccountPage(target);
+    });
+  });
+  if (dom.accountCancel) {
+    dom.accountCancel.addEventListener('click', () => {
+      stopAccountPolling();
+      if (dom.accountSignInBox) dom.accountSignInBox.hidden = true;
+      if (dom.accountSignedOut) dom.accountSignedOut.hidden = false;
+    });
+  }
+  if (dom.accountSignOut) dom.accountSignOut.addEventListener('click', signOutAccount);
+  if (dom.accountSync) dom.accountSync.addEventListener('click', syncAccount);
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Settings                                                                  */
 /* -------------------------------------------------------------------------- */
 function openSettings(tab = 'connection') {
+  // Paint the panel immediately from the state loaded at startup, then fetch
+  // fresh values in the background. Opening the modal must never wait on the
+  // network or on rebuilding the full model list.
+  openOverlay(dom.settingsModal, tab === 'connection' ? dom.apiKeyInput : null);
+  populateSettingsFromState();
+  switchSettingsTab(tab);
+
   API.getSettings()
     .then((result) => {
-      applyProviderData(result);
+      applyProviderData(result, { preserveEditing: true });
       dom.apiKeyInput.value = '';
-      dom.apiKeyInput.placeholder = result.has_api_key ? '•••••••• (a key is saved)' : providerKeyHint(result.provider);
-      renderSettingsModels();
-      updateAbout();
-      switchSettingsTab(tab);
-      openOverlay(dom.settingsModal, tab === 'connection' ? dom.apiKeyInput : null);
+      dom.apiKeyInput.placeholder = result.has_api_key
+        ? '•••••••• (a key is saved)'
+        : providerKeyHint(result.provider);
+      if (settingsModelsVisible()) renderSettingsModels();
+      if (tab === 'about') updateAbout();
     })
-    .catch((error) => toast(error.message, 'error'));
+    .catch(() => {});
+}
+
+function populateSettingsFromState() {
+  dom.apiKeyInput.value = '';
+  dom.apiKeyInput.placeholder = state.configured
+    ? '•••••••• (a key is saved)'
+    : providerKeyHint(state.activeProvider);
+  dom.baseUrlInput.value = state.baseUrl || '';
+  renderProviderSelect();
+  updateProviderDocs();
+  updateAbout();
 }
 
 function providerKeyHint(providerId) {
@@ -2123,11 +2364,18 @@ function providerKeyHint(providerId) {
   return (provider && provider.key_hint) || 'sk-...';
 }
 
-function applyProviderData(result) {
+function applyProviderData(result, { preserveEditing = false } = {}) {
   state.providers = result.providers || state.providers;
   state.activeProvider = result.provider || state.activeProvider;
   state.catalogUpdated = result.catalog_updated || state.catalogUpdated;
-  dom.baseUrlInput.value = result.base_url || '';
+  state.baseUrl = result.base_url || '';
+  if (typeof result.has_github_token === 'boolean') state.hasGithubToken = result.has_github_token;
+  if (result.update_repo) state.updateRepo = result.update_repo;
+  // Don't clobber a field the user may already be typing in after the modal
+  // opened instantly (the refresh resolves in the background).
+  if (!preserveEditing || document.activeElement !== dom.baseUrlInput) {
+    dom.baseUrlInput.value = result.base_url || '';
+  }
   renderProviderSelect();
   updateProviderDocs();
 }
@@ -2152,30 +2400,38 @@ function sortProviders(providers) {
   });
 }
 
-function renderProviderSelect() {
-  if (!dom.providerSelect) return;
+function providerGroups() {
   const providers = state.providers.length
     ? sortProviders(state.providers)
     : [{ id: state.activeProvider, name: state.activeProvider, has_key: false }];
-  dom.providerSelect.innerHTML = '';
   const configured = providers.filter((provider) => provider.has_key && !provider.custom);
+  const others = providers.filter(
+    (provider) => !(provider.has_key && !provider.custom) && !provider.custom,
+  );
+  const custom = providers.find((provider) => provider.custom);
+  return { providers, configured, others, custom };
+}
+
+function renderProviderSelect() {
+  if (!dom.providerSelect) return;
+  const { configured, others, custom } = providerGroups();
+  dom.providerSelect.innerHTML = '';
   if (configured.length) {
     const group = document.createElement('optgroup');
     group.label = 'Configured';
     configured.forEach((provider) => group.appendChild(providerOption(provider)));
     dom.providerSelect.appendChild(group);
   }
-  const others = providers.filter(
-    (provider) => !(provider.has_key && !provider.custom) && !provider.custom,
-  );
   if (others.length) {
     const group = document.createElement('optgroup');
     group.label = configured.length ? 'More providers' : 'Providers';
     others.forEach((provider) => group.appendChild(providerOption(provider)));
     dom.providerSelect.appendChild(group);
   }
-  const custom = providers.find((provider) => provider.custom);
   if (custom) dom.providerSelect.appendChild(providerOption(custom));
+  dom.providerSelect.value = state.activeProvider;
+  renderProviderMenu();
+  updateProviderTriggerLabel();
 }
 
 function providerOption(provider) {
@@ -2188,9 +2444,114 @@ function providerOption(provider) {
   return option;
 }
 
+function renderProviderMenu() {
+  if (!dom.providerMenuList) return;
+  const query = (dom.providerSearchInput?.value || '').trim().toLowerCase();
+  const { configured, others, custom } = providerGroups();
+  const list = dom.providerMenuList;
+  list.innerHTML = '';
+
+  const matches = (provider) =>
+    !query || `${provider.name || ''} ${provider.id || ''}`.toLowerCase().includes(query);
+
+  const section = (label, items) => {
+    const filtered = items.filter(matches);
+    if (!filtered.length) return;
+    if (label) {
+      const head = document.createElement('div');
+      head.className = 'provider-group-label';
+      head.textContent = label;
+      list.appendChild(head);
+    }
+    filtered.forEach((provider) => list.appendChild(providerMenuOption(provider)));
+  };
+
+  section(configured.length ? 'Configured' : '', configured);
+  section(configured.length ? 'More providers' : 'Providers', others);
+  if (custom) section('', [custom]);
+
+  if (!list.children.length) {
+    list.innerHTML = `<div class="empty-state">No providers match \u201c${escapeHtml(query)}\u201d.</div>`;
+  }
+}
+
+function providerMenuOption(provider) {
+  const active = provider.id === state.activeProvider;
+  const option = document.createElement('button');
+  option.type = 'button';
+  option.className = `model-option provider-option${active ? ' active' : ''}`;
+  option.setAttribute('role', 'option');
+  option.setAttribute('aria-selected', String(active));
+  option.innerHTML = `
+    <div class="model-option-body">
+      <div class="model-option-label">${escapeHtml(provider.name || provider.id)}</div>
+      ${provider.base_url ? `<div class="model-option-hint">${escapeHtml(provider.base_url)}</div>` : ''}
+    </div>
+    ${provider.has_key && !provider.custom ? '<span class="provider-option-key">Key saved</span>' : ''}
+    ${icon('check', 'model-option-check')}`;
+  option.addEventListener('click', () => {
+    closeProviderMenu();
+    if (!active) onProviderChange(provider.id);
+  });
+  return option;
+}
+
+function updateProviderTriggerLabel() {
+  if (!dom.providerTriggerLabel) return;
+  const provider = state.providers.find((entry) => entry.id === state.activeProvider);
+  dom.providerTriggerLabel.textContent = provider
+    ? provider.name
+    : (state.activeProvider || 'Select provider');
+}
+
+function openProviderMenu() {
+  if (!dom.providerMenu) return;
+  closeModelMenu(MAIN_MODEL_REFS());
+  closeModelMenu(COMPOSE_MODEL_REFS());
+  dom.providerMenu.hidden = false;
+  dom.providerTrigger?.setAttribute('aria-expanded', 'true');
+  renderProviderMenu();
+  if (dom.providerSearchInput) {
+    dom.providerSearchInput.value = '';
+    setTimeout(() => dom.providerSearchInput.focus(), 20);
+  }
+}
+
+function closeProviderMenu() {
+  if (!dom.providerMenu) return;
+  dom.providerMenu.hidden = true;
+  dom.providerTrigger?.setAttribute('aria-expanded', 'false');
+  if (dom.providerSearchInput) dom.providerSearchInput.value = '';
+}
+
+function toggleProviderMenu() {
+  if (!dom.providerMenu) return;
+  if (dom.providerMenu.hidden) openProviderMenu();
+  else closeProviderMenu();
+}
+
 function wireProviderEvents() {
   if (dom.providerSelect) {
     dom.providerSelect.addEventListener('change', () => onProviderChange(dom.providerSelect.value));
+  }
+  if (dom.providerTrigger) {
+    dom.providerTrigger.addEventListener('click', (event) => {
+      event.stopPropagation();
+      toggleProviderMenu();
+    });
+  }
+  if (dom.providerMenu) {
+    dom.providerMenu.addEventListener('click', (event) => event.stopPropagation());
+  }
+  if (dom.providerSearchInput) {
+    dom.providerSearchInput.addEventListener('input', () => renderProviderMenu());
+    dom.providerSearchInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        const first = $('.provider-option', dom.providerMenuList);
+        if (first) first.click();
+      }
+    });
   }
   if (dom.refreshModels) {
     dom.refreshModels.addEventListener('click', () => refreshModels(dom.refreshModels));
@@ -2227,7 +2588,7 @@ async function onProviderChange(providerId) {
     state.models = result.models || [];
     state.defaultModel = result.default_model || state.defaultModel;
     rebuildModelSelect(result.default_model);
-    renderSettingsModels();
+    if (settingsModelsVisible()) renderSettingsModels();
     if (result.settings?.has_api_key !== undefined) {
       dom.apiKeyInput.placeholder = result.has_api_key ? '•••••••• (a key is saved)' : (provider.key_hint || 'sk-...');
     }
@@ -2279,8 +2640,32 @@ function switchSettingsTab(tab) {
   $$('.settings-panel').forEach((panel) => {
     panel.classList.toggle('active', panel.dataset.panel === tab);
   });
-  if (tab === 'models') renderSettingsModels();
+  if (tab === 'models') requestAnimationFrame(renderSettingsModels);
+  if (tab === 'account') refreshAccount();
   if (tab === 'about') updateAbout();
+}
+
+// The Models settings list is expensive to build, so only do it when it is
+// actually on screen.
+function settingsModelsVisible() {
+  return Boolean(
+    dom.settingsModal &&
+    !dom.settingsModal.hidden &&
+    document.querySelector('.settings-panel.active[data-panel="models"]')
+  );
+}
+
+function customModelHost(url) {
+  try {
+    return new URL(url).host;
+  } catch (error) {
+    return url;
+  }
+}
+
+function setCustomToggleLabel(text) {
+  const label = dom.customModelToggle && $('.btn-label', dom.customModelToggle);
+  if (label) label.textContent = text;
 }
 
 function renderSettingsModels() {
@@ -2290,19 +2675,25 @@ function renderSettingsModels() {
     dom.modelsUpdatedNote.textContent =
       `Showing all ${state.models.length} models across every provider · catalogue updated ${state.catalogUpdated}.`;
   }
+  if (dom.customModelNote) {
+    dom.customModelNote.textContent =
+      `Saved under ${providerName(state.activeProvider)}. Base URL & key override that provider for this model.`;
+  }
   if (!state.models.length) {
     dom.settingsModelList.innerHTML = '<div class="empty-state">No models yet — click Refresh to fetch the live list.</div>';
     return;
   }
   const current = dom.modelSelect.value || state.defaultModel;
   state.models.forEach((model) => {
-    const row = document.createElement('button');
-    row.type = 'button';
-    row.className = `model-row${model.id === current ? ' active' : ''}`;
+    const row = document.createElement('div');
+    row.className = `model-row${model.id === current ? ' active' : ''}${model.custom ? ' custom' : ''}`;
+    row.setAttribute('role', 'button');
+    row.tabIndex = 0;
     const meta = [];
     if (model.context) meta.push(`${Math.round(model.context / 1000)}K context`);
     if (model.reasoning) meta.push('thinking');
-    if (model.provider_name || model.provider) meta.push(model.provider_name || model.provider);
+    if (model.custom && model.base_url) meta.push(customModelHost(model.base_url));
+    else if (model.provider_name || model.provider) meta.push(model.provider_name || model.provider);
     row.innerHTML = `
       ${icon('bolt')}
       <div class="model-row-body">
@@ -2312,13 +2703,200 @@ function renderSettingsModels() {
       </div>
       ${model.has_key === false ? '<span class="model-option-badge needs-key">Add key</span>' : ''}
       ${model.badge ? `<span class="model-option-badge">${escapeHtml(model.badge)}</span>` : ''}
-      ${icon('check', 'model-row-check')}`;
+      ${icon('check', 'model-row-check')}
+      ${model.custom ? `<span class="model-row-actions">
+        <span class="model-row-edit" role="button" tabindex="0" title="Edit custom model" aria-label="Edit custom model">${icon('pen')}</span>
+        <span class="model-row-delete" role="button" tabindex="0" title="Remove custom model" aria-label="Remove custom model">${icon('trash')}</span>
+      </span>` : ''}`;
     row.addEventListener('click', () => {
       selectModel(model.id);
       toast(`Default model set to ${model.label || model.id}.`, 'success', 2200);
     });
+    row.addEventListener('keydown', (event) => {
+      if ((event.key === 'Enter' || event.key === ' ') && event.target === row) {
+        event.preventDefault();
+        selectModel(model.id);
+        toast(`Default model set to ${model.label || model.id}.`, 'success', 2200);
+      }
+    });
+    if (model.custom) {
+      const edit = $('.model-row-edit', row);
+      const remove = $('.model-row-delete', row);
+      edit.addEventListener('click', (event) => {
+        event.stopPropagation();
+        editCustomModel(model);
+      });
+      edit.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          event.stopPropagation();
+          editCustomModel(model);
+        }
+      });
+      const removeModel = (event) => {
+        event.stopPropagation();
+        deleteCustomModel(model);
+      };
+      remove.addEventListener('click', removeModel);
+      remove.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          removeModel(event);
+        }
+      });
+    }
     dom.settingsModelList.appendChild(row);
   });
+}
+
+let editingCustomModel = null;
+
+function openCustomModelForm() {
+  if (!dom.customModelForm) return;
+  dom.customModelForm.hidden = false;
+  dom.customModelToggle?.setAttribute('aria-expanded', 'true');
+  setCustomToggleLabel('Close');
+  dom.customModelId?.focus();
+}
+
+function closeCustomModelForm() {
+  if (!dom.customModelForm) return;
+  dom.customModelForm.hidden = true;
+  dom.customModelToggle?.setAttribute('aria-expanded', 'false');
+  setCustomToggleLabel('Add model');
+}
+
+function resetCustomModelForm() {
+  editingCustomModel = null;
+  if (dom.customModelId) {
+    dom.customModelId.value = '';
+    dom.customModelId.readOnly = false;
+  }
+  if (dom.customModelLabel) dom.customModelLabel.value = '';
+  if (dom.customModelBaseUrl) dom.customModelBaseUrl.value = '';
+  if (dom.customModelApiKey) {
+    dom.customModelApiKey.value = '';
+    dom.customModelApiKey.placeholder = 'sk-...';
+  }
+  if (dom.customModelContext) dom.customModelContext.value = '';
+  if (dom.customModelReasoning) dom.customModelReasoning.checked = false;
+  if (dom.customModelTitle) dom.customModelTitle.textContent = 'Add a custom model';
+  if (dom.customModelCancel) dom.customModelCancel.hidden = true;
+  const label = dom.addCustomModel && $('.btn-label', dom.addCustomModel);
+  if (label) label.textContent = 'Add model';
+}
+
+function editCustomModel(model) {
+  if (!dom.customModelForm) return;
+  editingCustomModel = model;
+  openCustomModelForm();
+  if (dom.customModelId) {
+    dom.customModelId.value = model.id || '';
+    dom.customModelId.readOnly = true;
+  }
+  if (dom.customModelLabel) dom.customModelLabel.value = model.label || '';
+  if (dom.customModelBaseUrl) dom.customModelBaseUrl.value = model.base_url || '';
+  if (dom.customModelApiKey) {
+    dom.customModelApiKey.value = '';
+    dom.customModelApiKey.placeholder = model.has_key ? 'Saved — leave blank to keep' : 'sk-...';
+  }
+  if (dom.customModelContext) dom.customModelContext.value = model.context || '';
+  if (dom.customModelReasoning) dom.customModelReasoning.checked = Boolean(model.reasoning);
+  if (dom.customModelTitle) dom.customModelTitle.textContent = 'Edit custom model';
+  if (dom.customModelCancel) dom.customModelCancel.hidden = false;
+  const label = dom.addCustomModel && $('.btn-label', dom.addCustomModel);
+  if (label) label.textContent = 'Save changes';
+  dom.customModelLabel?.focus();
+}
+
+async function submitCustomModel(event) {
+  if (event) event.preventDefault();
+  const id = dom.customModelId?.value.trim();
+  if (!id) {
+    dom.customModelId?.focus();
+    return;
+  }
+  const contextValue = Number.parseInt(dom.customModelContext?.value || '', 10);
+  const body = {
+    id,
+    label: dom.customModelLabel?.value.trim() || '',
+    provider: state.activeProvider,
+    base_url: dom.customModelBaseUrl?.value.trim() || '',
+    reasoning: Boolean(dom.customModelReasoning?.checked),
+    context: Number.isFinite(contextValue) && contextValue > 0 ? contextValue : 0,
+  };
+  // Only send api_key when the user typed one, so editing keeps the saved key.
+  const key = dom.customModelApiKey?.value.trim();
+  if (key) body.api_key = key;
+
+  const button = dom.addCustomModel;
+  const original = button ? button.innerHTML : '';
+  if (button) {
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner"></span><span class="btn-label">Saving...</span>';
+  }
+  try {
+    const result = await API.addCustomModel(body);
+    applyModelData(result);
+    toast(`${editingCustomModel ? 'Updated' : 'Added'} model ${body.label || id}.`, 'success');
+    resetCustomModelForm();
+    closeCustomModelForm();
+  } catch (error) {
+    toast(error.message, 'error');
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.innerHTML = original;
+    }
+  }
+}
+
+async function submitCustomModel(event) {
+  if (event) event.preventDefault();
+  const id = dom.customModelId?.value.trim();
+  const label = dom.customModelLabel?.value.trim();
+  if (!id) {
+    dom.customModelId?.focus();
+    return;
+  }
+  const button = dom.addCustomModel;
+  const original = button ? button.innerHTML : '';
+  if (button) {
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner"></span><span class="btn-label">Adding...</span>';
+  }
+  try {
+    const result = await API.addCustomModel({ id, label, provider: state.activeProvider });
+    applyModelData(result);
+    if (dom.customModelId) dom.customModelId.value = '';
+    if (dom.customModelLabel) dom.customModelLabel.value = '';
+    toast(`Added model ${label || id}.`, 'success');
+  } catch (error) {
+    toast(error.message, 'error');
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.innerHTML = original;
+    }
+  }
+}
+
+async function deleteCustomModel(model) {
+  try {
+    const result = await API.deleteCustomModel({ id: model.id, provider: model.provider });
+    applyModelData(result);
+    toast(`Removed ${model.label || model.id}.`, 'info');
+  } catch (error) {
+    toast(error.message, 'error');
+  }
+}
+
+function applyModelData(result) {
+  state.models = result.models || state.models;
+  if (result.default_model) state.defaultModel = result.default_model;
+  rebuildModelSelect(dom.modelSelect.value || state.defaultModel);
+  if (settingsModelsVisible()) renderSettingsModels();
+  updateAbout();
 }
 
 function updateAbout() {
@@ -2327,6 +2905,17 @@ function updateAbout() {
   const model = state.models.find((entry) => entry.id === (dom.modelSelect.value || state.defaultModel));
   dom.aboutModel.textContent = model ? (model.label || model.id) : (state.defaultModel || '—');
   dom.aboutStatus.textContent = state.configured ? 'Connected & ready' : 'API key required';
+  if (dom.aboutRepo) dom.aboutRepo.textContent = state.updateRepo || 'GitHub Releases';
+  if (dom.githubTokenNote) {
+    dom.githubTokenNote.textContent = state.hasGithubToken
+      ? '(a token is saved)'
+      : '(optional if the gh CLI is signed in)';
+  }
+  if (dom.githubTokenInput) {
+    dom.githubTokenInput.placeholder = state.hasGithubToken
+      ? '•••••••• (a token is saved)'
+      : 'ghp_… or github_pat_…';
+  }
 }
 
 async function saveSettings() {
@@ -2373,7 +2962,7 @@ async function refreshModels(button = dom.refreshModels) {
     const result = await API.refreshModels({ provider: state.activeProvider });
     state.models = result.models || [];
     rebuildModelSelect();
-    renderSettingsModels();
+    if (settingsModelsVisible()) renderSettingsModels();
     await refreshStatus();
     toast(`Loaded ${state.models.length} models from ${providerName(state.activeProvider)}.`, 'success');
   } catch (error) {
@@ -2473,6 +3062,7 @@ async function refreshStatus() {
     state.configured = result.configured;
     state.defaultModel = result.model;
     state.models = result.models || [];
+    state.baseUrl = result.base_url || state.baseUrl;
     state.reasoningLevels = result.reasoning_levels || state.reasoningLevels;
     state.reasoningEffort = result.reasoning_effort || state.reasoningEffort;
     state.appName = result.app || state.appName;
@@ -2501,23 +3091,18 @@ async function refreshStatus() {
       if (dom.composeModelSelect) dom.composeModelSelect.value = selected;
     }
 
-    dom.statusDot.classList.toggle('online', result.configured);
-    dom.statusDot.classList.toggle('offline', !result.configured);
     dom.modelDot.classList.toggle('online', result.configured);
     dom.modelDot.classList.toggle('offline', !result.configured);
     dom.composeModelDot?.classList.toggle('online', result.configured);
     dom.composeModelDot?.classList.toggle('offline', !result.configured);
-    updateConnectStatus();
     updateModelTriggerLabel(MAIN_MODEL_REFS());
     updateModelTriggerLabel(COMPOSE_MODEL_REFS());
     renderModelMenu(MAIN_MODEL_REFS());
     renderModelMenu(COMPOSE_MODEL_REFS());
     renderReasoningSelect();
-    renderSettingsModels();
+    if (settingsModelsVisible()) renderSettingsModels();
     updateAbout();
   } catch (error) {
-    dom.statusDot.classList.add('offline');
-    dom.connectionStatus.textContent = 'Backend unavailable';
     console.warn('Status check failed:', error.message);
   }
 }
@@ -2525,32 +3110,297 @@ async function refreshStatus() {
 /* -------------------------------------------------------------------------- */
 /*  Updates                                                                   */
 /* -------------------------------------------------------------------------- */
+let updatePollTimer = null;
+
 function setUpdateBusy(busy) {
   if (!dom.windowUpdate) return;
   dom.windowUpdate.classList.toggle('busy', busy);
   dom.windowUpdate.disabled = busy;
 }
 
-async function checkForUpdate() {
-  if (!dom.windowUpdate || dom.windowUpdate.classList.contains('busy')) return;
+function updateFormatBytes(bytes) {
+  const value = Number(bytes) || 0;
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(0)} KB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function canDownloadLatest(info) {
+  return !!(info && info.asset && (info.asset.url || info.asset.browser_url));
+}
+
+function resetUpdateModal() {
+  state.updatePhase = 'idle';
+  state.updateInfo = null;
+  if (dom.updateVersionRow) dom.updateVersionRow.hidden = true;
+  if (dom.updateNotes) dom.updateNotes.hidden = true;
+  if (dom.updateNotesBody) dom.updateNotesBody.innerHTML = '';
+  if (dom.updateProgressBox) {
+    dom.updateProgressBox.hidden = true;
+    dom.updateProgressBox.classList.remove('error');
+  }
+  if (dom.updateProgressBar) dom.updateProgressBar.style.width = '0%';
+  if (dom.updateProgressPercent) dom.updateProgressPercent.textContent = '0%';
+  if (dom.updateOpenRelease) dom.updateOpenRelease.hidden = true;
+  if (dom.updateTokenBtn) dom.updateTokenBtn.hidden = true;
+  if (dom.updateAction) {
+    dom.updateAction.hidden = false;
+    dom.updateAction.disabled = false;
+    dom.updateAction.textContent = 'Download update';
+  }
+  if (dom.updateClose) dom.updateClose.disabled = false;
+}
+
+function openUpdateModal(info = {}) {
+  resetUpdateModal();
+  state.updateInfo = info;
+  state.updatePhase = info.error
+    ? 'check-error'
+    : info.update_available
+      ? 'available'
+      : 'uptodate';
+
+  if (dom.updateModalSub) {
+    dom.updateModalSub.textContent = info.update_available
+      ? `Pike ${info.latest} is available.`
+      : info.error
+        ? 'Update check failed.'
+        : `You are on the latest version (${info.latest || state.appVersion || '—'}). You can still download it again.`;
+  }
+
+  if (dom.updateCurrent) dom.updateCurrent.textContent = info.current || state.appVersion || '—';
+  if (dom.updateLatest) dom.updateLatest.textContent = info.latest || '—';
+  if (dom.updateVersionRow) dom.updateVersionRow.hidden = !(info.current || info.latest);
+
+  if (dom.updateNotesBody && info.notes) {
+    dom.updateNotesBody.innerHTML = renderMarkdown(info.notes);
+    if (dom.updateNotes) dom.updateNotes.hidden = false;
+  }
+
+  if (dom.updateOpenRelease && info.html_url) {
+    dom.updateOpenRelease.href = info.html_url;
+    dom.updateOpenRelease.hidden = false;
+  }
+
+  if (dom.updateHintText) {
+    if (info.error) {
+      dom.updateHintText.textContent = info.error;
+    } else if (!info.authenticated) {
+      dom.updateHintText.textContent =
+        'This release lives in a private repository. Add a GitHub token (or sign in with the gh CLI) to download it.';
+    } else {
+      const size = info.asset && info.asset.size ? ` (${updateFormatBytes(info.asset.size)})` : '';
+      dom.updateHintText.textContent =
+        `Downloads come straight from ${info.repo || 'your private Pike repository'}${size}.`;
+    }
+  }
+  if (dom.updateTokenBtn) dom.updateTokenBtn.hidden = !!(info.authenticated || info.error == null);
+
+  if (info.error) {
+    dom.updateAction.textContent = 'Try again';
+  } else if (info.update_available) {
+    dom.updateAction.textContent = 'Download update';
+  } else if (canDownloadLatest(info)) {
+    dom.updateAction.textContent = 'Download latest';
+  } else {
+    dom.updateAction.textContent = 'Check again';
+  }
+
+  openOverlay(dom.updateModal, dom.updateAction);
+}
+
+async function checkForUpdate({ silent = false } = {}) {
+  if (dom.windowUpdate?.classList.contains('busy')) return;
   setUpdateBusy(true);
+  if (!silent) toast('Checking for updates…', 'info', 1800);
   try {
     const result = await API.checkForUpdate();
+    state.updateInfo = result;
     if (result.update_available) {
-      const label = `Update ${result.latest} available.`;
-      toast(`${label} Opening the download page...`, 'success', 6000);
-      if (result.url) {
-        window.open(result.url, '_blank', 'noopener');
+      dom.windowUpdate?.classList.add('update-available');
+      if (silent) {
+        toast(`Pike ${result.latest} is available — click Update to install it.`, 'info', 8000);
+      } else {
+        toast(`Pike ${result.latest} is available.`, 'success', 3000);
+        openUpdateModal(result);
       }
-    } else if (result.configured) {
-      toast(`You're on the latest version (${result.current}).`, 'success', 3000);
     } else {
-      toast(`Pike ${result.current} — no update source configured.`, 'info', 4000);
+      dom.windowUpdate?.classList.remove('update-available');
+      if (dom.aboutRepo) dom.aboutRepo.textContent = result.repo || state.updateRepo || 'GitHub Releases';
+      if (!silent) toast(`You're on the latest version (${result.current}).`, 'success', 3000);
+      if (dom.updateModal && !dom.updateModal.hidden) openUpdateModal(result);
     }
+    return result;
   } catch (error) {
-    toast(error.message || 'Could not check for updates.', 'error', 5000);
+    const message = error.message || 'Could not check for updates.';
+    if (silent) {
+      console.warn('Update check failed:', message);
+    } else {
+      toast(message, 'error', 6000);
+      openUpdateModal({
+        current: state.appVersion,
+        latest: state.appVersion,
+        authenticated: false,
+        error: message,
+      });
+    }
   } finally {
     setUpdateBusy(false);
+  }
+}
+
+async function startUpdateDownload() {
+  if (!dom.updateModal || dom.updateAction.disabled) return;
+  state.updatePhase = 'downloading';
+  dom.updateAction.disabled = true;
+  dom.updateAction.textContent = 'Downloading…';
+  dom.updateProgressBox.hidden = false;
+  dom.updateProgressBox.classList.remove('error');
+  dom.updateProgressBar.style.width = '0%';
+  dom.updateProgressPercent.textContent = '0%';
+  dom.updateProgressLabel.textContent = 'Starting…';
+  try {
+    await API.downloadUpdate({
+      version: state.updateInfo?.latest || '',
+      prerelease: !!state.updateInfo?.prerelease,
+    });
+    startUpdatePolling();
+  } catch (error) {
+    showUpdateDownloadError(error.message || 'Could not start the download.');
+  }
+}
+
+function startUpdatePolling() {
+  stopUpdatePolling();
+  updatePollTimer = setInterval(pollUpdateProgress, 700);
+  pollUpdateProgress();
+}
+
+function stopUpdatePolling() {
+  if (updatePollTimer) {
+    clearInterval(updatePollTimer);
+    updatePollTimer = null;
+  }
+}
+
+async function pollUpdateProgress() {
+  try {
+    const result = await API.updateProgress();
+    const percent = Number(result.percent) || 0;
+    if (dom.updateProgressBar) dom.updateProgressBar.style.width = `${Math.min(100, percent)}%`;
+    if (dom.updateProgressPercent) dom.updateProgressPercent.textContent = `${percent.toFixed(0)}%`;
+    if (dom.updateProgressLabel) {
+      const speed = result.speed ? ` · ${updateFormatBytes(result.speed)}/s` : '';
+      dom.updateProgressLabel.textContent = `${result.message || 'Downloading…'}${speed}`;
+    }
+
+    if (result.phase === 'ready') {
+      stopUpdatePolling();
+      state.updatePhase = 'ready';
+      dom.updateProgressBox.hidden = true;
+      dom.updateAction.disabled = false;
+      dom.updateAction.textContent = 'Install & restart';
+      dom.updateClose.disabled = false;
+      toast(`Pike ${result.version} is ready to install.`, 'success', 4000);
+      if (dom.updateNotes) dom.updateNotes.hidden = true;
+    } else if (result.phase === 'error') {
+      stopUpdatePolling();
+      showUpdateDownloadError(result.error || 'The download failed.');
+    }
+  } catch (error) {
+    stopUpdatePolling();
+    showUpdateDownloadError(error.message || 'Lost track of the download.');
+  }
+}
+
+function showUpdateDownloadError(message) {
+  state.updatePhase = 'download-error';
+  if (dom.updateProgressBox) {
+    dom.updateProgressBox.hidden = false;
+    dom.updateProgressBox.classList.add('error');
+  }
+  if (dom.updateProgressLabel) dom.updateProgressLabel.textContent = message;
+  if (dom.updateAction) {
+    dom.updateAction.disabled = false;
+    dom.updateAction.textContent = 'Retry download';
+  }
+  toast(message, 'error', 6000);
+}
+
+async function installUpdate() {
+  if (dom.updateAction.disabled) return;
+  dom.updateAction.disabled = true;
+  dom.updateClose.disabled = true;
+  dom.updateAction.textContent = 'Installing…';
+  toast('Installing the update. Pike will restart.', 'success', 6000);
+  try {
+    const result = await API.applyUpdate();
+    if (result.mode === 'manual') {
+      dom.updateAction.disabled = false;
+      dom.updateClose.disabled = false;
+      dom.updateAction.textContent = 'Retry install';
+      toast(`Update saved to ${result.path}. Install it manually.`, 'info', 8000);
+    }
+    // For installer/replace modes the app exits on its own shortly.
+  } catch (error) {
+    dom.updateAction.disabled = false;
+    dom.updateClose.disabled = false;
+    dom.updateAction.textContent = 'Retry install';
+    toast(error.message || 'Could not install the update.', 'error', 6000);
+  }
+}
+
+function handleUpdateAction() {
+  switch (state.updatePhase) {
+    case 'available':
+    case 'download-error':
+      startUpdateDownload();
+      break;
+    case 'ready':
+      installUpdate();
+      break;
+    case 'downloading':
+      break;
+    case 'uptodate':
+      // Even when the versions match we still let the user pull the newest
+      // build straight from GitHub Releases.
+      if (canDownloadLatest(state.updateInfo)) {
+        startUpdateDownload();
+      } else {
+        checkForUpdate();
+      }
+      break;
+    case 'check-error':
+    default:
+      checkForUpdate();
+  }
+}
+
+async function saveGithubToken() {
+  const token = dom.githubTokenInput?.value.trim();
+  if (!token) {
+    toast('Paste a GitHub token first.', 'info');
+    return;
+  }
+  try {
+    const result = await API.saveSettings({ github_token: token });
+    state.hasGithubToken = !!result.has_github_token;
+    if (dom.githubTokenInput) dom.githubTokenInput.value = '';
+    updateAbout();
+    toast('GitHub token saved. You can now download Pike updates.', 'success');
+  } catch (error) {
+    toast(error.message || 'Could not save the token.', 'error');
+  }
+}
+
+async function clearGithubToken() {
+  try {
+    const result = await API.saveSettings({ github_token: '' });
+    state.hasGithubToken = !!result.has_github_token;
+    updateAbout();
+    toast('GitHub token removed.', 'info');
+  } catch (error) {
+    toast(error.message || 'Could not remove the token.', 'error');
   }
 }
 
@@ -3094,6 +3944,7 @@ function initTerminalResize() {
 /*  Event wiring                                                              */
 /* -------------------------------------------------------------------------- */
 function bindEvents() {
+  bindAccountEvents();
   // Composer
   dom.composeChooseFolder.addEventListener('click', openFolderModal);
   dom.prompt.addEventListener('input', autoResize);
@@ -3200,7 +4051,7 @@ function bindEvents() {
   });
   dom.composeReasoningMenu?.addEventListener('click', (event) => event.stopPropagation());
 
-  document.addEventListener('click', () => { closeModelMenu(MAIN_MODEL_REFS()); closeModelMenu(COMPOSE_MODEL_REFS()); closeReasoningMenu(MAIN_REASONING_REFS()); closeReasoningMenu(COMPOSE_REASONING_REFS()); closeAttachMenu(MAIN_ATTACH_REFS()); closeAttachMenu(COMPOSE_ATTACH_REFS()); });
+  document.addEventListener('click', () => { closeProviderMenu(); closeModelMenu(MAIN_MODEL_REFS()); closeModelMenu(COMPOSE_MODEL_REFS()); closeReasoningMenu(MAIN_REASONING_REFS()); closeReasoningMenu(COMPOSE_REASONING_REFS()); closeAttachMenu(MAIN_ATTACH_REFS()); closeAttachMenu(COMPOSE_ATTACH_REFS()); });
 
   // Projects
   dom.newProject.addEventListener('click', (event) => {
@@ -3236,9 +4087,23 @@ function bindEvents() {
   dom.menuBtn.addEventListener('click', openSidebar);
   dom.sidebarClose.addEventListener('click', closeSidebar);
   dom.backdrop.addEventListener('click', closeSidebar);
-  dom.connectCard.addEventListener('click', openConnectModal);
   dom.settingsBtn.addEventListener('click', () => openSettings('connection'));
   dom.windowUpdate?.addEventListener('click', checkForUpdate);
+
+  // Update modal
+  dom.updateClose?.addEventListener('click', () => closeOverlay(dom.updateModal));
+  dom.updateModalClose?.addEventListener('click', () => closeOverlay(dom.updateModal));
+  dom.updateModal?.addEventListener('mousedown', (event) => {
+    if (event.target === dom.updateModal) closeOverlay(dom.updateModal);
+  });
+  dom.updateAction?.addEventListener('click', handleUpdateAction);
+  dom.updateTokenBtn?.addEventListener('click', () => {
+    closeOverlay(dom.updateModal);
+    openSettings('about');
+  });
+  dom.saveGithubToken?.addEventListener('click', saveGithubToken);
+  dom.clearGithubToken?.addEventListener('click', clearGithubToken);
+  dom.aboutCheckUpdate?.addEventListener('click', () => checkForUpdate());
   dom.clearHistory.addEventListener('click', async () => {
     if (!state.history.length) { toast('There is no history to clear.', 'info'); return; }
     await clearAllConversations();
@@ -3265,12 +4130,6 @@ function bindEvents() {
     dom.searchInput.focus();
   });
 
-  // Connect modal
-  dom.connectModalClose.addEventListener('click', closeConnectModal);
-  dom.connectModal.addEventListener('mousedown', (event) => {
-    if (event.target === dom.connectModal) closeConnectModal();
-  });
-
   // Settings modal
   dom.modalClose.addEventListener('click', () => closeOverlay(dom.settingsModal));
   dom.settingsModal.addEventListener('mousedown', (event) => {
@@ -3280,6 +4139,27 @@ function bindEvents() {
   dom.removeKey.addEventListener('click', removeKey);
   dom.testConnection.addEventListener('click', testConnection);
   wireProviderEvents();
+  dom.customModelForm?.addEventListener('submit', submitCustomModel);
+  dom.customModelToggle?.addEventListener('click', () => {
+    if (dom.customModelForm?.hidden) {
+      resetCustomModelForm();
+      openCustomModelForm();
+    } else {
+      resetCustomModelForm();
+      closeCustomModelForm();
+    }
+  });
+  dom.customModelCancel?.addEventListener('click', () => {
+    resetCustomModelForm();
+    closeCustomModelForm();
+  });
+  dom.customModelKeyToggle?.addEventListener('click', () => {
+    if (!dom.customModelApiKey) return;
+    const isPassword = dom.customModelApiKey.type === 'password';
+    dom.customModelApiKey.type = isPassword ? 'text' : 'password';
+    dom.customModelKeyToggle.innerHTML = icon(isPassword ? 'eye-off' : 'eye');
+    dom.customModelKeyToggle.title = isPassword ? 'Hide key' : 'Show key';
+  });
   dom.toggleKey.addEventListener('click', () => {
     const isPassword = dom.apiKeyInput.type === 'password';
     dom.apiKeyInput.type = isPassword ? 'text' : 'password';
@@ -3406,6 +4286,7 @@ function bindEvents() {
       else if (!dom.terminalPanel.hidden) closeTerminal();
       else if (!dom.attachMenu.hidden) closeAttachMenu(MAIN_ATTACH_REFS());
       else if (dom.composeAttachMenu && !dom.composeAttachMenu.hidden) closeAttachMenu(COMPOSE_ATTACH_REFS());
+      else if (dom.providerMenu && !dom.providerMenu.hidden) closeProviderMenu();
       else if (!dom.modelMenu.hidden) closeModelMenu(MAIN_MODEL_REFS());
       else if (dom.composeModelMenu && !dom.composeModelMenu.hidden) closeModelMenu(COMPOSE_MODEL_REFS());
       else if (dom.reasoningMenu && !dom.reasoningMenu.hidden) closeReasoningMenu(MAIN_REASONING_REFS());
@@ -3432,6 +4313,7 @@ function bindEvents() {
   window.addEventListener('resize', debounce(() => {
     if (!window.matchMedia('(max-width: 900px)').matches) closeSidebar();
     autoResize();
+    closeProviderMenu();
     closeModelMenu(MAIN_MODEL_REFS());
     closeModelMenu(COMPOSE_MODEL_REFS());
     closeReasoningMenu(MAIN_REASONING_REFS());
@@ -3515,6 +4397,11 @@ async function init() {
   if (!state.configured) {
     setTimeout(() => toast('Add your API key to start chatting.', 'info', 5000), 700);
   }
+
+  // Quietly check GitHub for a newer build once the app has settled.
+  setTimeout(() => {
+    checkForUpdate({ silent: true }).catch(() => {});
+  }, 3000);
 }
 
 /** Wait until the native window bar has been built (no-op in browser mode). */

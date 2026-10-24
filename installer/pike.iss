@@ -20,7 +20,7 @@
 
 ; --- Defaults (overridable with /DAppVersion=... on the iscc command line) --
 #ifndef AppVersion
-  #define AppVersion "1.0.0"
+  #define AppVersion "1.0.1"
 #endif
 #ifndef AppPublisher
   #define AppPublisher "Pike"
@@ -75,7 +75,11 @@ Name: "{group}\{cm:UninstallProgram,{#AppName}}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(AppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+; Interactive installs get the usual "Launch Pike" checkbox on the finish
+; page. Silent installs (i.e. in-app updates) relaunch Pike automatically so
+; the user is returned to the new version without doing anything.
+Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(AppName, '&', '&&')}}"; Flags: nowait postinstall; Check: not IsSilent
+Filename: "{app}\{#AppExeName}"; Flags: nowait; Check: IsSilent
 
 [UninstallDelete]
 ; Per-user app data (settings + chat history) lives in %APPDATA%\Pike and is

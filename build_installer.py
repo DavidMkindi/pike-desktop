@@ -41,7 +41,7 @@ ISS_FILE = INSTALLER_DIR / "pike.iss"
 DIST_EXE = ROOT / "dist" / "Pike.exe"
 
 # Keep in sync with build_exe.py / config.py.
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.1"
 APP_PUBLISHER = "Pike"
 APP_URL = "https://github.com/DavidMkindi/pike-desktop"
 

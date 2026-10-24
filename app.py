@@ -26,9 +26,11 @@ from flask import Flask, Response, jsonify, render_template, request, stream_wit
 import requests
 
 import ai_client
+import account_client
 import config
 import database
 import terminal as terminal_manager
+import updater
 import workspace
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
@@ -36,6 +38,9 @@ app.config["JSON_SORT_KEYS"] = False
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 
 database.init_db()
+# If this device is linked to a Pike account, keep it marked active in the
+# background so it shows up on the web dashboard.
+account_client.ensure_heartbeat_thread()
 
 logger = logging.getLogger("pike")
 
@@ -488,12 +493,6 @@ def _sse(event_type: str, data: dict[str, Any]) -> str:
     return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
 
 
-def _version_tuple(text: str) -> tuple[int, ...]:
-    """Turn a version string into a comparable tuple of integers."""
-    parts = re.findall(r"\d+", str(text) or "")
-    return tuple(int(part) for part in parts) if parts else (0,)
-
-
 @app.after_request
 def _no_cache(response: Response) -> Response:
     if request.path.startswith("/api/"):
@@ -537,49 +536,68 @@ def api_status() -> Response:
 
 @app.get("/api/update")
 def api_update_check() -> Response:
-    """Check whether a newer version is available.
+    """Check GitHub Releases for a newer Pike build.
 
-    Looks at the update manifest configured via ``PIKE_UPDATE_URL`` (a small
-    JSON document such as ``{"version": "1.2.0", "url": "...", "notes": "..."}``).
-    When no manifest is configured the app simply reports that it is up to date
-    and where to get new releases.
+    Pike's releases live in a private repository, so the check uses a GitHub
+    token (env, saved settings or the ``gh`` CLI). A legacy JSON manifest can
+    still be configured with ``PIKE_UPDATE_URL`` and is used as a fallback.
     """
-    current = config.APP_VERSION
-    manifest_url = config.get_update_url()
-    latest = current
-    download_url = ""
-    notes = ""
-    configured = bool(manifest_url)
+    try:
+        result = updater.check()
+        if not result.get("url"):
+            result["url"] = config.RELEASES_URL
+        return jsonify(result)
+    except updater.UpdaterError as exc:
+        return _json_error(f"Could not check for updates: {exc}", 502)
+    except Exception as exc:  # pragma: no cover - network/defensive
+        return _json_error(f"Could not check for updates: {exc}", 502)
 
-    if configured:
-        try:
-            response = requests.get(manifest_url, timeout=8)
-            response.raise_for_status()
-            manifest = response.json()
-            if isinstance(manifest, dict):
-                latest = str(manifest.get("version") or current)
-                download_url = str(manifest.get("url") or "")
-                notes = str(manifest.get("notes") or "")
-        except Exception as exc:
-            return jsonify(
-                {
-                    "ok": False,
-                    "error": f"Could not check for updates: {exc}",
-                    "current": current,
-                }
-            ), 502
 
-    return jsonify(
-        {
-            "ok": True,
-            "configured": configured,
-            "current": current,
-            "latest": latest,
-            "update_available": _version_tuple(latest) > _version_tuple(current),
-            "url": download_url or config.RELEASES_URL,
-            "notes": notes,
-        }
-    )
+@app.post("/api/update/download")
+def api_update_download() -> Response:
+    """Download the newest release in the background."""
+    payload = request.get_json(silent=True) or {}
+    try:
+        state = updater.start_download(
+            version=str(payload.get("version") or ""),
+            include_prerelease=bool(payload.get("prerelease")),
+        )
+    except updater.UpdaterError as exc:
+        return _json_error(str(exc), 502)
+    except Exception as exc:  # pragma: no cover - defensive
+        return _json_error(f"Could not start the download: {exc}", 500)
+    return jsonify({"ok": True, **state})
+
+
+@app.get("/api/update/progress")
+def api_update_progress() -> Response:
+    """Report the background download's progress."""
+    return jsonify({"ok": True, **updater.progress()})
+
+
+@app.post("/api/update/cancel")
+def api_update_cancel() -> Response:
+    """Cancel an in-flight download."""
+    return jsonify({"ok": True, **updater.cancel_download()})
+
+
+@app.post("/api/update/apply")
+def api_update_apply() -> Response:
+    """Install the downloaded update and restart Pike."""
+    result = updater.apply_update()
+    if not result.get("ok"):
+        return _json_error(str(result.get("error") or "Could not install the update."), 400)
+
+    # The installer (or the swap script) needs Pike to step aside. Give the
+    # response a moment to reach the browser, then exit so files can be replaced.
+    mode = result.get("mode")
+    if mode in {"installer", "replace"}:
+        def _quit() -> None:
+            time.sleep(1.5)
+            os._exit(0)
+
+        threading.Thread(target=_quit, name="pike-update-exit", daemon=True).start()
+    return jsonify({"ok": True, **result})
 
 
 @app.get("/api/settings")
@@ -599,6 +617,8 @@ def api_get_settings() -> Response:
             "catalog_updated": config.CATALOG_UPDATED,
             "reasoning_levels": config.REASONING_LEVELS,
             "reasoning_effort": config.get_reasoning_effort(),
+            "has_github_token": bool(settings.get("has_github_token")),
+            "update_repo": config.get_update_repo(),
         }
     )
 
@@ -624,6 +644,11 @@ def api_save_settings() -> Response:
             config.set_default_model(str(payload["model"]))
         if "reasoning_effort" in payload:
             config.set_reasoning_effort(str(payload.get("reasoning_effort") or ""))
+        if "github_token" in payload:
+            token = payload.get("github_token")
+            config.set_github_token(token if isinstance(token, str) else None)
+        if "update_repo" in payload and payload.get("update_repo"):
+            config.set_update_repo(str(payload["update_repo"]))
     except Exception as exc:  # pragma: no cover - defensive
         return _json_error(f"Could not save settings: {exc}", 500)
     return api_get_settings()
@@ -661,6 +686,54 @@ def api_refresh_models() -> Response:
             "ok": True,
             "provider": provider,
             "models": config.get_models(),
+        }
+    )
+
+
+@app.post("/api/models/custom")
+def api_add_custom_model() -> Response:
+    """Add a user-defined model id to the catalogue."""
+    payload = request.get_json(silent=True) or {}
+    model_id = str(payload.get("id") or "").strip()
+    if not model_id:
+        return _json_error("A model id is required.")
+    try:
+        config.add_custom_model(
+            model_id,
+            payload.get("label"),
+            payload.get("provider"),
+            base_url=payload.get("base_url"),
+            api_key=payload.get("api_key") if "api_key" in payload else None,
+            reasoning=payload.get("reasoning"),
+            context=payload.get("context"),
+            hint=payload.get("hint"),
+        )
+    except ValueError as exc:
+        return _json_error(str(exc))
+    return jsonify(
+        {
+            "ok": True,
+            "models": config.get_models(),
+            "default_model": config.get_default_model(),
+        }
+    )
+
+
+@app.post("/api/models/custom/delete")
+def api_delete_custom_model() -> Response:
+    """Remove a user-defined model id from the catalogue."""
+    payload = request.get_json(silent=True) or {}
+    model_id = str(payload.get("id") or "").strip()
+    if not model_id:
+        return _json_error("A model id is required.")
+    removed = config.remove_custom_model(model_id, payload.get("provider"))
+    if not removed:
+        return _json_error("That custom model was not found.", 404)
+    return jsonify(
+        {
+            "ok": True,
+            "models": config.get_models(),
+            "default_model": config.get_default_model(),
         }
     )
 
@@ -756,12 +829,25 @@ def api_chat_stream() -> Response:
                     )
 
             full_reply = "".join(collected)
+            elapsed = round(time.time() - started, 2)
+            # Report anonymised usage so the web dashboard can chart it.
+            try:
+                prompt_chars = sum(
+                    len(str(m.get("content")) if isinstance(m, dict) else m) for m in (wire or [])
+                )
+                account_client.record_usage(
+                    model or config.get_default_model(),
+                    tokens_in=prompt_chars // 4,
+                    tokens_out=len(full_reply) // 4,
+                )
+            except Exception:
+                pass
             yield _sse(
                 "done",
                 {
                     "reply": full_reply,
                     "reasoning": "".join(thinking),
-                    "elapsed": round(time.time() - started, 2),
+                    "elapsed": elapsed,
                 },
             )
         except ai_client.AIError as exc:
@@ -1108,6 +1194,81 @@ def api_save_chat() -> Response:
 
 
 # --------------------------------------------------------------------------- #
+#  Account (sign in through the website + dashboard reporting)
+# --------------------------------------------------------------------------- #
+@app.get("/api/account")
+def api_account_status() -> Response:
+    """Whether this device is linked to a Pike account."""
+    return jsonify({"ok": True, **account_client.status()})
+
+
+@app.post("/api/account/login/start")
+def api_account_login_start() -> Response:
+    payload = request.get_json(silent=True) or {}
+    result = account_client.start_login(payload.get("device_name", ""))
+    if not result.get("ok"):
+        return _json_error(result.get("error", "Could not start sign-in."), 502)
+    # The approval URL is opened by the backend (see /api/account/open) so the
+    # account server address never reaches the frontend.
+    result.pop("verification_uri", None)
+    result.pop("verification_uri_complete", None)
+    return jsonify(result)
+
+
+@app.post("/api/account/open")
+def api_account_open() -> Response:
+    """Open an account page in the system browser without exposing its URL."""
+    payload = request.get_json(silent=True) or {}
+    target = str(payload.get("target") or "")
+    try:
+        opened = account_client.open_page(target)
+    except Exception as exc:  # pragma: no cover - opening a browser can fail
+        return _json_error(f"Could not open the page: {exc}", 500)
+    if not opened:
+        return _json_error("That account page is not available right now.")
+    return jsonify({"ok": True})
+
+
+@app.post("/api/account/login/poll")
+def api_account_login_poll() -> Response:
+    payload = request.get_json(silent=True) or {}
+    device_code = payload.get("device_code")
+    if not device_code:
+        return _json_error("'device_code' is required.")
+    result = account_client.poll_login(str(device_code))
+    if result.get("ok") and result.get("status") == "approved":
+        account_client.ensure_heartbeat_thread()
+    if not result.get("ok") and result.get("error"):
+        return _json_error(result["error"], 400)
+    return jsonify(result)
+
+
+@app.post("/api/account/logout")
+def api_account_logout() -> Response:
+    account_client.sign_out()
+    return jsonify({"ok": True, **account_client.status()})
+
+
+@app.post("/api/account/server")
+def api_account_server() -> Response:
+    payload = request.get_json(silent=True) or {}
+    url = payload.get("server_url")
+    if url and not str(url).startswith(("http://", "https://")):
+        return _json_error("Server URL must start with http:// or https://")
+    if url:
+        account_client.set_server_url(str(url))
+    return jsonify({"ok": True, **account_client.status()})
+
+
+@app.post("/api/account/sync")
+def api_account_sync() -> Response:
+    result = account_client.sync_now()
+    if not result.get("ok"):
+        return _json_error(result.get("error", "Sync failed."), 400)
+    return jsonify(result)
+
+
+# --------------------------------------------------------------------------- #
 #  Error handlers
 # --------------------------------------------------------------------------- #
 @app.errorhandler(404)
@@ -1207,7 +1368,14 @@ def run_desktop(host: str, port: int) -> None:
     def close():
         window.destroy()
 
-    window.expose(minimize, toggle_maximize, close)
+    def open_external(url: str) -> None:
+        """Open a link (e.g. the Pike account website) in the user's browser."""
+        import webbrowser
+
+        if url and url.startswith(("http://", "https://")):
+            webbrowser.open(url)
+
+    window.expose(minimize, toggle_maximize, close, open_external)
     webview.start(debug=config.DEBUG)
 
 

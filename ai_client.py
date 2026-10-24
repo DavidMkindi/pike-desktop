@@ -31,8 +31,11 @@ def provider_info() -> dict[str, Any]:
     connection = config.resolve_connection(config.get_default_model())
     model_provider = connection.get("provider", active)
     active_entry = next((p for p in providers if p["id"] == model_provider), None)
+    configured = bool(connection.get("api_key")) or bool(
+        connection.get("custom") and connection.get("base_url")
+    )
     return {
-        "configured": bool(connection.get("api_key")),
+        "configured": configured,
         "model": config.get_default_model(),
         "models": config.get_models(),
         "base_url": config.get_base_url(),
@@ -135,6 +138,7 @@ def _connection(model: str | None) -> dict[str, Any]:
         "api_key": connection["api_key"],
         "provider": connection["provider"],
         "meta": connection.get("model") or {},
+        "custom": bool(connection.get("custom")),
     }
 
 
@@ -143,11 +147,14 @@ def _endpoint(base_url: str) -> str:
 
 
 def _headers(api_key: str) -> dict[str, str]:
-    return {
-        "Authorization": f"Bearer {api_key}",
+    headers = {
         "Content-Type": "application/json",
         "Accept": "text/event-stream",
     }
+    # Local / self-hosted OpenAI-compatible servers often need no key at all.
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    return headers
 
 
 def _error_from_response(response: requests.Response) -> AIError:
@@ -276,7 +283,7 @@ def stream_chat(
     caller should execute before continuing).
     """
     connection = _connection(model)
-    if not connection["api_key"]:
+    if not connection["api_key"] and not (connection.get("custom") and connection["base_url"]):
         raise AIError(
             "No API key configured. Add one in Settings, or set OPENAI_API_KEY and restart.",
             status=400,
@@ -452,7 +459,7 @@ def complete_chat(
 ) -> dict[str, Any]:
     """Non-streaming completion. Returns reply, model and any reasoning."""
     connection = _connection(model)
-    if not connection["api_key"]:
+    if not connection["api_key"] and not (connection.get("custom") and connection["base_url"]):
         raise AIError(
             "No API key configured. Add one in Settings, or set OPENAI_API_KEY and restart.",
             status=400,

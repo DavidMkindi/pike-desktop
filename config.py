@@ -29,7 +29,7 @@ except Exception:  # pragma: no cover - dotenv is optional
     pass
 
 APP_NAME = "Pike"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.1"
 
 ROOT = Path(__file__).resolve().parent
 
@@ -487,7 +487,7 @@ FEATURED_PROVIDERS = [
     "custom",
 ]
 
-_SENSITIVE_KEYS = {"api_key", "provider_api_keys"}
+_SENSITIVE_KEYS = {"api_key", "provider_api_keys", "github_token"}
 
 
 # --------------------------------------------------------------------------- #
@@ -508,7 +508,21 @@ def load_settings() -> dict[str, Any]:
     with _SETTINGS_LOCK:
         raw = _read_settings()
     safe = {k: v for k, v in raw.items() if k not in _SENSITIVE_KEYS}
+    # Custom model entries carry their own key; redact it for display too.
+    custom = safe.get(CUSTOM_MODELS_KEY)
+    if isinstance(custom, list):
+        safe[CUSTOM_MODELS_KEY] = [
+            {
+                **{k: v for k, v in entry.items() if k != "api_key"},
+                "api_key_set": bool(entry.get("api_key")),
+            }
+            if isinstance(entry, dict)
+            else entry
+            for entry in custom
+        ]
     safe["has_api_key"] = bool(raw.get("api_key"))
+    safe["has_github_token"] = bool(raw.get("github_token") or GITHUB_TOKEN)
+    safe["update_repo"] = get_update_repo()
     return safe
 
 
@@ -693,8 +707,179 @@ def save_catalog(provider: str, models: list[dict[str, Any]]) -> None:
         SETTINGS_FILE.write_text(json.dumps(current, indent=2), "utf-8")
 
 
+CUSTOM_MODELS_KEY = "custom_models"
+
+
+def _custom_models() -> list[dict[str, Any]]:
+    """User-added models persisted in settings.json.
+
+    A custom model may carry its own connection details (``base_url`` and
+    ``api_key``) so it can talk to any OpenAI-compatible endpoint without
+    changing the active provider. ``api_key`` is internal only and is stripped
+    before the catalogue is sent to the UI.
+    """
+    with _SETTINGS_LOCK:
+        stored = _read_settings().get(CUSTOM_MODELS_KEY)
+    if not isinstance(stored, list):
+        return []
+    models: list[dict[str, Any]] = []
+    for entry in stored:
+        if not isinstance(entry, dict) or not entry.get("id"):
+            continue
+        models.append(
+            {
+                "id": str(entry["id"]),
+                "label": str(entry.get("label") or entry["id"]),
+                "hint": str(entry.get("hint") or "Added by you"),
+                "badge": str(entry.get("badge") or "Custom"),
+                "reasoning": bool(entry.get("reasoning")),
+                "context": int(entry.get("context") or 0),
+                "provider": str(entry.get("provider") or "custom"),
+                "base_url": str(entry.get("base_url") or "").rstrip("/"),
+                "api_key": str(entry.get("api_key") or ""),
+                "custom": True,
+            }
+        )
+    return models
+
+
+def get_custom_models(provider: str | None = None) -> list[dict[str, Any]]:
+    """Return the custom models, optionally filtered to one provider."""
+    models = _custom_models()
+    if provider:
+        models = [model for model in models if model["provider"] == provider]
+    return models
+
+
+def get_custom_model(model_id: str, provider: str | None = None) -> dict[str, Any] | None:
+    """Find one custom model by id (and optionally provider), secrets included."""
+    target = (model_id or "").strip()
+    if not target:
+        return None
+    for model in _custom_models():
+        if model["id"] == target and (provider is None or model["provider"] == provider):
+            return model
+    return None
+
+
+def add_custom_model(
+    model_id: str,
+    label: str | None = None,
+    provider: str | None = None,
+    *,
+    base_url: str | None = None,
+    api_key: str | None = None,
+    reasoning: bool | None = None,
+    context: int | None = None,
+    hint: str | None = None,
+) -> dict[str, Any]:
+    """Add (or update) a user-defined model and persist it.
+
+    ``base_url`` / ``api_key`` are optional per-model connection overrides so a
+    custom model can talk to any OpenAI-compatible endpoint on its own. Passing
+    ``None`` (the default) keeps any existing value; pass an empty string to
+    clear it.
+    """
+    model_id = (model_id or "").strip()
+    if not model_id:
+        raise ValueError("A model id is required.")
+    target = (provider or "").strip()
+    if target not in PROVIDERS:
+        target = get_active_provider()
+    label = (label or "").strip() or model_id
+
+    with _SETTINGS_LOCK:
+        current = _read_settings()
+        models = current.get(CUSTOM_MODELS_KEY)
+        models = [m for m in models if isinstance(m, dict)] if isinstance(models, list) else []
+        existing = next(
+            (
+                m
+                for m in models
+                if str(m.get("id")) == model_id
+                and str(m.get("provider") or "custom") == target
+            ),
+            None,
+        )
+        if base_url is None and existing is not None:
+            base_url = str(existing.get("base_url") or "")
+        if api_key is None and existing is not None:
+            api_key = str(existing.get("api_key") or "")
+        if hint is None and existing is not None:
+            hint = str(existing.get("hint") or "")
+        if reasoning is None and existing is not None:
+            reasoning = bool(existing.get("reasoning"))
+        if context is None and existing is not None:
+            context = int(existing.get("context") or 0)
+
+        base_url = (base_url or "").strip().rstrip("/")
+        if base_url and not base_url.startswith(("http://", "https://")):
+            raise ValueError("Base URL must start with http:// or https://")
+
+        entry: dict[str, Any] = {
+            "id": model_id,
+            "label": label,
+            "provider": target,
+            "badge": "Custom",
+            "hint": (hint or "").strip() or "Added by you",
+            "reasoning": bool(reasoning),
+            "context": int(context or 0),
+            "base_url": base_url,
+            "api_key": str(api_key or ""),
+        }
+
+        # Replace an existing entry for the same provider + id so details can
+        # be corrected instead of creating duplicates.
+        models = [
+            m
+            for m in models
+            if not (
+                str(m.get("id")) == model_id
+                and str(m.get("provider") or "custom") == target
+            )
+        ]
+        models.append(entry)
+        current[CUSTOM_MODELS_KEY] = models
+        SETTINGS_FILE.write_text(json.dumps(current, indent=2), "utf-8")
+        try:
+            os.chmod(SETTINGS_FILE, 0o600)
+        except OSError:
+            pass
+
+    safe = {k: v for k, v in entry.items() if k != "api_key"}
+    return {**safe, "api_key_set": bool(entry["api_key"]), "custom": True}
+
+
+def remove_custom_model(model_id: str, provider: str | None = None) -> bool:
+    """Delete a user-defined model. Returns True when something was removed."""
+    model_id = (model_id or "").strip()
+    if not model_id:
+        return False
+    with _SETTINGS_LOCK:
+        current = _read_settings()
+        models = current.get(CUSTOM_MODELS_KEY)
+        models = [m for m in models if isinstance(m, dict)] if isinstance(models, list) else []
+        before = len(models)
+        if provider:
+            models = [
+                m
+                for m in models
+                if not (
+                    str(m.get("id")) == model_id
+                    and str(m.get("provider") or "custom") == provider
+                )
+            ]
+        else:
+            models = [m for m in models if str(m.get("id")) != model_id]
+        if len(models) == before:
+            return False
+        current[CUSTOM_MODELS_KEY] = models
+        SETTINGS_FILE.write_text(json.dumps(current, indent=2), "utf-8")
+    return True
+
+
 def _models_for_provider(provider: str) -> list[dict[str, Any]]:
-    """Built-in models first, then any cached live models that add new ids."""
+    """Built-in models, cached live models and user-added custom models."""
     entry = PROVIDERS.get(provider, {})
     builtin = [dict(model) for model in entry.get("models", [])]
     seen = {model["id"] for model in builtin}
@@ -704,6 +889,19 @@ def _models_for_provider(provider: str) -> list[dict[str, Any]]:
             if isinstance(model, dict) and model.get("id") and model["id"] not in seen:
                 builtin.append(dict(model))
                 seen.add(model["id"])
+    for model in get_custom_models(provider):
+        if model["id"] in seen:
+            continue
+        # Never leak the per-model API key into the public catalogue.
+        safe = {k: v for k, v in model.items() if k not in ("provider", "api_key")}
+        # A custom model with its own endpoint is usable even without a key.
+        safe["has_key"] = (
+            bool(model.get("api_key"))
+            or bool(model.get("base_url"))
+            or provider_has_key(provider)
+        )
+        builtin.append(safe)
+        seen.add(model["id"])
     return builtin
 
 
@@ -735,7 +933,7 @@ def all_models() -> list[dict[str, Any]]:
             if key in seen:
                 continue
             seen.add(key)
-            model["has_key"] = provider_has_key(provider)
+            model.setdefault("has_key", provider_has_key(provider))
             model.setdefault("provider_name", PROVIDERS[provider].get("name", provider))
             models.append(model)
     return models
@@ -796,6 +994,21 @@ def resolve_connection(model_id: str | None = None) -> dict[str, Any]:
     active = get_active_provider()
     chosen = (model_id or get_default_model()).strip()
 
+    # A user-defined model may carry its own endpoint + key; it always wins.
+    custom = get_custom_model(chosen)
+    if custom is not None:
+        provider = custom.get("provider") or active
+        base_url = custom.get("base_url") or get_provider_base_url(provider)
+        api_key = custom.get("api_key") or get_provider_key(provider)
+        meta = {k: v for k, v in custom.items() if k != "api_key"}
+        return {
+            "base_url": base_url.rstrip("/"),
+            "api_key": api_key,
+            "provider": provider,
+            "model": meta,
+            "custom": True,
+        }
+
     provider = _provider_for_model(chosen)
     if provider is None:
         provider = active
@@ -816,6 +1029,7 @@ def resolve_connection(model_id: str | None = None) -> dict[str, Any]:
         "api_key": api_key,
         "provider": provider,
         "model": meta,
+        "custom": False,
     }
 
 
@@ -928,15 +1142,49 @@ BROWSER_ONLY = os.environ.get("PIKE_BROWSER_ONLY", "false").lower() in ("1", "tr
 REQUEST_TIMEOUT = int(os.environ.get("PIKE_TIMEOUT", "120"))
 
 # --- Updates --------------------------------------------------------------- #
-# Optional JSON manifest describing the latest release, e.g.
+# Pike's own releases live in this GitHub repository. It is private, so the
+# updater authenticates with a token (see updater.py for the lookup order).
+UPDATE_REPO = os.environ.get("PIKE_UPDATE_REPO", "DavidMkindi/pike-desktop").strip()
+# Optional GitHub token for reading releases from a private repository.
+GITHUB_TOKEN = os.environ.get("PIKE_GITHUB_TOKEN", "").strip()
+# Where the "Open releases" link points when there is no download available.
+RELEASES_URL = os.environ.get("PIKE_RELEASES_URL", "").strip()
+
+# Legacy: an optional JSON manifest describing the latest release, e.g.
 #   {"version": "1.2.0", "url": "https://.../Pike.exe", "notes": "What's new"}
 UPDATE_URL = os.environ.get("PIKE_UPDATE_URL", "").strip()
-# Where the "Open releases" link points when there is no manifest/download URL.
-RELEASES_URL = os.environ.get("PIKE_RELEASES_URL", "").strip()
+
+
+def get_update_repo() -> str:
+    """Resolve the GitHub ``owner/repo`` that hosts Pike's releases."""
+    if UPDATE_REPO:
+        return UPDATE_REPO
+    with _SETTINGS_LOCK:
+        stored = _read_settings().get("update_repo")
+    return stored.strip() if isinstance(stored, str) else "DavidMkindi/pike-desktop"
+
+
+def set_update_repo(repo: str | None) -> None:
+    """Persist the GitHub repository used for updates."""
+    _write_settings({"update_repo": (repo or "").strip()})
+
+
+def get_github_token() -> str:
+    """Resolve the GitHub token used to read private releases."""
+    if GITHUB_TOKEN:
+        return GITHUB_TOKEN
+    with _SETTINGS_LOCK:
+        stored = _read_settings().get("github_token")
+    return stored.strip() if isinstance(stored, str) else ""
+
+
+def set_github_token(token: str | None) -> None:
+    """Persist (or clear) the GitHub token used for release downloads."""
+    _write_settings({"github_token": (token or "").strip()})
 
 
 def get_update_url() -> str:
-    """Resolve the update manifest URL (env var or saved settings)."""
+    """Resolve the legacy update manifest URL (env var or saved settings)."""
     if UPDATE_URL:
         return UPDATE_URL
     with _SETTINGS_LOCK:

@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parent
 
 # --- Application metadata (also baked into the exe's version resource) ------- #
 APP_NAME = "Pike"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.1"
 APP_PUBLISHER = "Pike"
 APP_DESCRIPTION = "Pike - a focused desktop AI assistant"
 APP_COPYRIGHT = "Copyright (C) 2025 Pike"
