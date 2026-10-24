@@ -61,31 +61,23 @@ jobs:
       - name: Build the macOS application bundle
         run: python build_exe.py
 
-      - name: Sign and package the app
+      - name: Build the macOS installers
         run: |
           set -euo pipefail
-          VERSION="${{ steps.version.outputs.version }}"
-          APP="dist/Pike.app"
-          if [ ! -d "$APP" ]; then
-            echo "::error::PyInstaller did not produce $APP"
-            ls -R dist || true
-            exit 1
-          fi
-          # Ad-hoc signature so the bundle is valid for local execution.
-          codesign --force --deep --sign - "$APP" || true
-          STAGE="Pike-macOS-${{ matrix.arch }}"
-          mkdir -p "$STAGE"
-          cp -R "$APP" "$STAGE/Pike.app"
-          cp packaging/macos/README.txt "$STAGE/README.txt"
-          ditto -c -k --sequesterRsrc --keepParent "$STAGE" \
-            "Pike-${VERSION}-macOS-${{ matrix.arch }}.zip"
-          ls -lh "Pike-${VERSION}-macOS-${{ matrix.arch }}.zip"
+          chmod +x packaging/macos/build_macos.sh
+          packaging/macos/build_macos.sh \
+            "${{ steps.version.outputs.version }}" \
+            "${{ matrix.arch }}" \
+            dist/Pike.app
+          ls -lh Pike-*-macOS-*
 
-      - name: Upload macOS build
+      - name: Upload macOS builds
         uses: actions/upload-artifact@v4
         with:
           name: Pike-macOS-${{ matrix.arch }}
-          path: Pike-*-macOS-${{ matrix.arch }}.zip
+          path: |
+            Pike-*-macOS-${{ matrix.arch }}.dmg
+            Pike-*-macOS-${{ matrix.arch }}.pkg
           if-no-files-found: error
 
       - name: Publish GitHub Release
@@ -95,5 +87,7 @@ jobs:
           tag_name: v${{ steps.version.outputs.version }}
           name: Pike v${{ steps.version.outputs.version }}
           generate_release_notes: true
-          files: Pike-*-macOS-${{ matrix.arch }}.zip
+          files: |
+            Pike-*-macOS-${{ matrix.arch }}.dmg
+            Pike-*-macOS-${{ matrix.arch }}.pkg
           fail_on_unmatched_files: true

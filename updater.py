@@ -188,16 +188,28 @@ def _asset_score(name: str, platform_key: str, arch: str) -> tuple[int, int, str
                 or (arch == "arm64" and ("apple" in name or "aarch64" in name))
                 or (arch == "x86_64" and "intel" in name)
             ) else 1
-            return (0, arch_match, name)
+            if name.endswith(".dmg"):
+                return (0, arch_match, name)
+            if name.endswith(".pkg"):
+                return (1, arch_match, name)
+            if name.endswith(".zip"):
+                return (2, arch_match, name)
+            return (3, arch_match, name)
         if name.endswith((".dmg", ".pkg", ".zip")):
             return (5, 0, name)
         return (9, 9, name)
 
     # Linux
-    if "linux" in name:
-        return (0, 0, name)
-    if name.endswith((".appimage", ".deb", ".tar.gz")):
-        return (1, 0, name)
+    if "linux" in name or name.endswith((".appimage", ".deb", ".rpm")):
+        if name.endswith(".appimage"):
+            return (0, 0, name)
+        if name.endswith(".deb"):
+            return (1, 0, name)
+        if name.endswith(".rpm"):
+            return (2, 0, name)
+        if name.endswith(".tar.gz"):
+            return (3, 0, name)
+        return (4, 0, name)
     return (9, 9, name)
 
 

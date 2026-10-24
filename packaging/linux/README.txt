@@ -1,24 +1,26 @@
-Pike - Linux build
-==================
+Pike for Linux
+==============
 
-Run the app:
+Two install options are published for each release:
 
-    ./Pike
+  Pike-<version>-Linux-amd64.deb
+      Debian / Ubuntu installer. Install with:
 
-The bundled binary already contains Python, the Flask backend and the Qt
-WebEngine runtime, so no extra packages are required on a normal desktop.
+          sudo apt install ./Pike-<version>-Linux-amd64.deb
 
-Optional: install it for the current user so it appears in your application
-menu:
+      This adds Pike to your application menu and creates a `pike` command.
+      Remove it later with:  sudo apt remove pike
 
-    ./install.sh
+  Pike-<version>-Linux-x86_64.AppImage
+      Portable single-file executable. Make it executable and run it:
 
-That copies the binary to ~/.local/bin/pike and adds a launcher entry to
-~/.local/share/applications.
+          chmod +x Pike-<version>-Linux-x86_64.AppImage
+          ./Pike-<version>-Linux-x86_64.AppImage
 
-Requires a 64-bit Linux desktop with a working X11/Wayland session and OpenGL
-(libGL). If the window does not open, try the browser fallback:
+      If AppImages do not start on your distribution, install FUSE 2
+      (`libfuse2`) or run it with:  --appimage-extract-and-run
 
-    ./Pike --browser
+Both bundles contain Python, the Flask backend and the Qt WebEngine runtime,
+so no extra packages are required on a normal 64-bit desktop.
 
 Settings and chat history are stored in ~/.local/share/pike.

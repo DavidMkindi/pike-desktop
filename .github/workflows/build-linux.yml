@@ -46,7 +46,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install "pywebview[qt]" "pyinstaller>=6.0.0"
+          pip install "pywebview[qt]" "pillow>=10.0.0" "pyinstaller>=6.0.0"
 
       - name: Resolve version
         id: version
@@ -79,23 +79,22 @@ jobs:
           echo "Pike did not become healthy in time." >&2
           exit 1
 
-      - name: Package the Linux build
+      - name: Build the Linux installers
         run: |
           set -euo pipefail
           VERSION="${{ steps.version.outputs.version }}"
-          mkdir -p package
-          cp dist/Pike package/Pike
-          cp packaging/linux/README.txt package/README.txt
-          cp packaging/linux/install.sh package/install.sh
-          chmod +x package/Pike package/install.sh
-          tar -C package -czf "Pike-${VERSION}-Linux-x86_64.tar.gz" .
-          ls -lh "Pike-${VERSION}-Linux-x86_64.tar.gz"
+          chmod +x packaging/linux/build_deb.sh packaging/linux/build_appimage.sh
+          packaging/linux/build_deb.sh "${VERSION}" dist/Pike amd64
+          packaging/linux/build_appimage.sh "${VERSION}" dist/Pike x86_64
+          ls -lh Pike-*-Linux-*
 
-      - name: Upload Linux build
+      - name: Upload Linux builds
         uses: actions/upload-artifact@v4
         with:
           name: Pike-Linux
-          path: Pike-*-Linux-x86_64.tar.gz
+          path: |
+            Pike-*-Linux-amd64.deb
+            Pike-*-Linux-x86_64.AppImage
           if-no-files-found: error
 
       - name: Publish GitHub Release
@@ -105,5 +104,7 @@ jobs:
           tag_name: v${{ steps.version.outputs.version }}
           name: Pike v${{ steps.version.outputs.version }}
           generate_release_notes: true
-          files: Pike-*-Linux-x86_64.tar.gz
+          files: |
+            Pike-*-Linux-amd64.deb
+            Pike-*-Linux-x86_64.AppImage
           fail_on_unmatched_files: true

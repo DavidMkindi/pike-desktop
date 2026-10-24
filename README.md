@@ -200,8 +200,8 @@ workflow attaches its build to the same GitHub Release.
 | Workflow | Runner | Release asset |
 | --- | --- | --- |
 | `Build Windows app + installer` | `windows-latest` | `Pike-<version>-Setup.exe` |
-| `Build macOS app` | `macos-latest`, `macos-15-intel` | `Pike-<version>-macOS-{arm64,x86_64}.zip` |
-| `Build Linux app` | `ubuntu-22.04` | `Pike-<version>-Linux-x86_64.tar.gz` |
+| `Build macOS app` | `macos-latest`, `macos-15-intel` | `Pike-<version>-macOS-<arch>.{dmg,pkg}` |
+| `Build Linux app` | `ubuntu-22.04` | `Pike-<version>-Linux-amd64.deb`, `Pike-<version>-Linux-x86_64.AppImage` |
 
 ```bash
 git tag v1.2.0 && git push origin v1.2.0
@@ -211,9 +211,10 @@ Any workflow can also be run manually from **Actions ▸ Run workflow** with the
 *release* input enabled to attach its build to the release for the version in
 `config.py`.
 
-On Linux the self-updater automatically selects the `Linux` archive and on
-macOS the archive matching the current CPU; both stage the download and tell
-you where to find it (automatic in-place install remains Windows-only).
+On Linux the self-updater automatically selects the `.AppImage` (falling back
+to the `.deb`) and on macOS the `.dmg` matching the current CPU; both stage
+the download and tell you where to find it (automatic in-place install remains
+Windows-only).
 
 Downloaded builds are staged in `%APPDATA%\Pike\updates\` and verified
 against the asset's SHA-256 digest before installation.

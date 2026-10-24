@@ -1,9 +1,15 @@
-Pike - macOS build
-==================
+Pike for macOS
+==============
 
-Drag Pike.app into your Applications folder, then open it.
+Two install options are published for each release:
 
-The build is ad-hoc signed but not notarised, so the first launch may be
+  Pike-<version>-macOS-<arch>.dmg
+      Open the disk image and drag Pike into your Applications folder.
+
+  Pike-<version>-macOS-<arch>.pkg
+      Double-click to install Pike into /Applications.
+
+The builds are ad-hoc signed but not notarised, so the first launch may be
 blocked by Gatekeeper. To allow it:
 
   * Right-click (or Control-click) Pike.app and choose "Open", then confirm; or
