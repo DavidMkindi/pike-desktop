@@ -78,8 +78,8 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: deskto
 ; Interactive installs get the usual "Launch Pike" checkbox on the finish
 ; page. Silent installs (i.e. in-app updates) relaunch Pike automatically so
 ; the user is returned to the new version without doing anything.
-Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(AppName, '&', '&&')}}"; Flags: nowait postinstall; Check: not IsSilent
-Filename: "{app}\{#AppExeName}"; Flags: nowait; Check: IsSilent
+Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(AppName, '&', '&&')}}"; Flags: nowait postinstall; Check: not WizardSilent
+Filename: "{app}\{#AppExeName}"; Flags: nowait; Check: WizardSilent
 
 [UninstallDelete]
 ; Per-user app data (settings + chat history) lives in %APPDATA%\Pike and is
